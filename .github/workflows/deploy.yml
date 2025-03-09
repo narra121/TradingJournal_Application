@@ -1,0 +1,33 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Change this to your main branch name (e.g., 'master')
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20" # Or your desired Node.js version
+
+      - name: Install dependencies
+        run: npm ci # Or `yarn install --frozen-lockfile`
+
+      - name: Build project
+        run: npm run build # Or `yarn build`
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build # For create-react-app. Use ./dist for Vite, etc.
+          # Optional: If you're using a custom domain, uncomment the line below:
+          # cname: your-custom-domain.com
