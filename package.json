@@ -60,25 +60,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
-  "build": {
-    "appId": "com.example.myapp",
-    "productName": "My App",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "files": [
-      "dist/**/*"
-    ],
-    "mac": {
-      "icon": "public/icon.icns"
-    },
-    "win": {
-      "icon": "public/icon.ico"
-    },
-    "linux": {
-      "category": "Utility",
-      "icon": "public/icon.png"
-    }
-  }
+  "description": ""
 }

@@ -4,7 +4,7 @@ import path from "path";
 
 //vitejs.dev/config/
 export default defineConfig({
-  base: "TradingJournal_Application",
+  base: "/TradingJournal_Application/",
   plugins: [react()],
   optimizeDeps: {
     exclude: ["lucide-react"],
