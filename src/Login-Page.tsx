@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { loginSuccess, logout } from "./app/authSlice";
 import { auth } from "./app/auth";
+import DashboardPage from "./dashboard/page.tsx";
 
 export default function Page() {
   const isLoggedIn = useSelector((state: RootState) => state.Auth.isLoggedIn);
@@ -35,7 +36,7 @@ export default function Page() {
   return (
     <>
       {checkingAuth && <div>Loading...</div>}
-      {!checkingAuth && isLoggedIn && <App />}
+      {!checkingAuth && isLoggedIn && <DashboardPage />}
       {!checkingAuth && !isLoggedIn && (
         <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
           <div className="w-full max-w-sm">

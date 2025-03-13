@@ -112,22 +112,31 @@ const initialState: TradesState = {
   status: "idle",
   error: null,
 };
+let unsubscribe: (() => void) | null = null; // Store the unsubscribe function
 
 export const subscribeToTrades = createAsyncThunk(
   "trades/subscribeToTrades",
   async (
     filters: { startDate?: string; endDate?: string; symbol?: string },
-    { getState, dispatch }
+    { getState, dispatch, rejectWithValue }
   ) => {
     try {
       const state = getState() as RootState;
       const userId = state.Auth.user?.uid; // Ensure user is authenticated
 
-      if (!userId) throw new Error("User is not authenticated");
+      if (!userId) {
+        return rejectWithValue("User is not authenticated");
+      }
+
+      // Cancel existing subscription if any
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
 
       let tradesQuery = query(collection(db, `users/${userId}/trades`));
 
-      // // Apply optional filters (example: date range, symbol)
+      // Apply optional filters (example: date range, symbol)
       // if (filters.startDate) {
       //   tradesQuery = query(
       //     tradesQuery,
@@ -145,31 +154,34 @@ export const subscribeToTrades = createAsyncThunk(
       // }
 
       // Subscribe to real-time updates
-      return new Promise<void>((resolve, reject) => {
-        const unsubscribe = onSnapshot(
-          tradesQuery,
-          (snapshot) => {
-            const trades: Trade[] = snapshot.docs.map(
-              (doc) => ({ tradeId: doc.id, ...doc.data() } as Trade)
-            );
-            dispatch(tradesSlice.actions.setTrades(trades)); // Update Redux store
-          },
-          (error) => {
-            console.error("Error fetching trades:", error);
-            reject(error);
-          }
-        );
+      unsubscribe = onSnapshot(
+        tradesQuery,
+        (snapshot) => {
+          const trades: Trade[] = [];
+          snapshot.forEach((doc) => {
+            let a = doc.data();
+            trades.push({ tradeId: doc.id, ...a } as Trade);
+          });
 
-        resolve(); // Resolve the promise
-        return unsubscribe; // Return unsubscribe function
-      });
+          console.log("Trades:", trades);
+          dispatch(
+            tradesSlice.actions.setTrades(
+              trades.filter((item) => item != undefined)
+            )
+          ); // Update Redux store
+        },
+        (error) => {
+          console.error("Error fetching trades:", error);
+          return rejectWithValue(error.message);
+        }
+      );
+      return unsubscribe;
     } catch (error: any) {
       console.error("Error in subscribeToTrades:", error);
-      throw error;
+      return rejectWithValue(error.message);
     }
   }
 );
-
 export const addTradeToFirestore = createAsyncThunk(
   "trades/addTradeToFirestore",
   async (trades: TradeDetails[], { rejectWithValue, getState }) => {
@@ -182,6 +194,9 @@ export const addTradeToFirestore = createAsyncThunk(
         // Batch insert for multiple trades
         const batch = writeBatch(db);
         trades.forEach((trade) => {
+          if (trade === undefined) {
+            throw new Error("trade is undefined");
+          }
           if (!trade.tradeId)
             throw new Error("tradeId is required for each trade");
           const tradeDocRef = doc(db, `users/${userId}/trades`, trade.tradeId);
@@ -270,7 +285,11 @@ export const tradesSlice = createSlice({
       state.trades = state.trades.concat(action.payload);
     },
     updateTrade: (state, action: PayloadAction<Trade>) => {},
-    deleteTrade: (state, action: PayloadAction<string>) => {},
+    deleteTrade: (state, action: PayloadAction<string>) => {
+      state.trades = state.trades.filter(
+        (trade) => trade.tradeId !== action.payload
+      );
+    },
     setCsvData: (state, action: PayloadAction<Trade[]>) => {
       state.trades = action.payload;
       state.status = "succeeded";

@@ -16,8 +16,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+} from "@/ui/select";
+import { Button } from "@/ui/button";
 import { CalendarView } from "./trading/CalendarView";
 import { RootState } from "@/app/store";
 import { useDispatch, useSelector } from "react-redux";

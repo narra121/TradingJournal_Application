@@ -1,39 +1,29 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
-  Upload,
-  X,
-  Check,
-  Trash2,
-  Edit2,
-  Merge,
-  AlertCircle,
-  Loader,
-  Clipboard,
-  Import,
-} from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { AppDispatch } from "@/app/store";
-import { useDispatch } from "react-redux";
-import { randomUUID } from "crypto";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../../ui/dialog";
 import {
-  addTradeToFirestore,
-  TradeDetails,
-  tradesSlice,
-} from "@/app/traceSlice";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/table";
+import { Button } from "../../ui/button";
+import { Input } from "../../ui/input";
+import { Loader2, Upload, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
-
-interface ImportedTrade {
-  tradeId: string;
-  OpenDate: string;
-  CloseDate: string;
-  Symbol: string;
-  Side: string;
-  Entry: number;
-  Exit: number;
-  Qty: number;
-  "P&L": string;
-  Status: string;
-}
+import { DateTimePicker24h } from "@/ui/DateTimePicker";
+import { Checkbox } from "@/ui/checkbox";
+import { parse, isValid } from "date-fns";
+import { useDispatch } from "react-redux";
+import { addTradeToFirestore, TradeDetails } from "@/app/traceSlice";
 
 interface Trade {
   tradeId: string;
@@ -48,58 +38,34 @@ interface Trade {
   status: string;
   selected?: boolean;
 }
-
-const TradeJournal: React.FC = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [trades, setTrades] = useState<TradeDetails[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+const parseDateString = (dateString: string): Date => {
+  let format: string = "yyyy-MM-dd HH:mm:ss";
+  const date = parse(dateString, format, new Date());
+  return isValid(date) ? date : new Date();
+};
+export function TradeImportDialog() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [editingCell, setEditingCell] = useState<{
     id: string;
     field: keyof Trade;
   } | null>(null);
-  const [editValue, setEditValue] = useState<string>("");
-  const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
-  const [screenshotText, setScreenshotText] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dispatch: AppDispatch = useDispatch();
+  const [isDirty, setIsDirty] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
-  const convertImportedTradeToTrade = (importedTrade: ImportedTrade): Trade => {
-    return {
-      tradeId: uuidv4(),
-
-      openDate: new Date(importedTrade.OpenDate).toISOString().split("T")[0],
-      closeDate: new Date(importedTrade.CloseDate).toISOString().split("T")[0],
-      symbol: importedTrade.Symbol,
-      side: importedTrade.Side.toLowerCase(),
-      entry: importedTrade.Entry,
-      exit: importedTrade.Exit,
-      qty: importedTrade.Qty,
-
-      pnl: parseFloat(importedTrade["P&L"].replace(/[^0-9.-]+/g, "")),
-      status: importedTrade.Status.toLowerCase() === "win" ? "tp" : "sl",
-    };
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      return;
-    }
-
+  const handleImageUpload = async (file: File) => {
     setIsLoading(true);
-    setError(null);
-
     try {
+      // Simulate API call to process image
+      const reader = new FileReader();
+      reader.onload = () => {
+        setUploadedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
       const formData = new FormData();
       formData.append("image", file);
 
@@ -122,552 +88,492 @@ const TradeJournal: React.FC = () => {
       }
 
       const responseText = await response.text();
-      const importedTrades: ImportedTrade[] = JSON.parse(responseText);
-
-      // Convert and validate the imported trades
-      const newTrades = importedTrades.map(convertImportedTradeToTrade);
-
-      setTrades((prev) => [...prev, ...newTrades]);
-      // Close dialog after successful import
+      let importedTrades: Trade[] = JSON.parse(responseText);
+      importedTrades = importedTrades.map((trade) => ({
+        ...trade,
+        tradeId: uuidv4(),
+        selected: false, //Initialize selected to false
+      }));
+      setTrades(importedTrades);
     } catch (error) {
-      console.error("Error processing trade image:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to process the trade image"
-      );
+      console.error("Error processing image:", error);
     } finally {
       setIsLoading(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
-  const handleScreenshotTextSubmit = async () => {
-    if (!screenshotText.trim()) {
-      setError("Please paste some text from your screenshot first");
-      return;
-    }
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) {
+        handleImageUpload(file);
+      }
+    },
+    [handleImageUpload]
+  );
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        "https://importtrades.azurewebsites.net/api/importtrades",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text: screenshotText }),
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData.items;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) handleImageUpload(file);
+          break;
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
       }
+    },
+    [handleImageUpload]
+  );
 
-      const importedTrades: ImportedTrade[] = await response.json();
-
-      // Convert and validate the imported trades
-      const newTrades = importedTrades.map(convertImportedTradeToTrade);
-
-      setTrades((prev) => [...prev, ...newTrades]);
-      setScreenshotText(""); // Clear the text area after processing
-      setIsDialogOpen(false); // Close dialog after successful import
-    } catch (error) {
-      console.error("Error processing trade text:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to process the trade text"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCellClick = (id: string, field: keyof Trade) => {
-    const trade = trades.find((t) => t.tradeId === id);
-    if (!trade) return;
-
-    setEditingCell({ id, field });
-    setEditValue(String(trade[field]));
-  };
-
-  const handleCellEdit = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditValue(e.target.value);
-  };
-
-  const saveEdit = () => {
-    if (!editingCell) return;
-
+  const handleCellEdit = (
+    id: string,
+    field: keyof Trade,
+    value: string | number
+  ) => {
     setTrades(
-      trades.map((trade) => {
-        if (trade.tradeId === editingCell.id) {
-          let value: any = editValue;
-
-          // Convert value to appropriate type based on field
-          if (["entry", "exit", "qty", "pnl"].includes(editingCell.field)) {
-            value = parseFloat(value);
-            if (isNaN(value)) value = 0;
-          }
-
-          return { ...trade, [editingCell.field]: value };
-        }
+      trades.map((trade) =>
+        trade.tradeId === id ? { ...trade, [field]: value } : trade
+      )
+    );
+    setEditingCell(null);
+    setIsDirty(true);
+  };
+  const dispatch = useDispatch();
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const a = trades.map((trade) => {
+        delete trade.selected;
         return trade;
-      })
-    );
-    setEditingCell(null);
-  };
-
-  const cancelEdit = () => {
-    setEditingCell(null);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      saveEdit();
-    } else if (e.key === "Escape") {
-      cancelEdit();
+      });
+      dispatch(addTradeToFirestore(a as TradeDetails[]) as any);
+    } finally {
+      setIsSaving(false);
+      setIsDirty(false);
     }
   };
 
-  const toggleTradeSelection = (id: string) => {
-    setSelectedTrades((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((tradeId) => tradeId !== id);
-      } else {
-        return [...prev, id];
-      }
-    });
-  };
-
-  const deleteTrades = () => {
-    if (selectedTrades.length === 0) {
-      setError("Please select at least one trade to delete");
-      return;
-    }
-
-    // Filter out the selected trades
-    const updatedTrades = trades.filter(
-      (trade) => !selectedTrades.includes(trade.tradeId)
+  const handleRowSelect = (id: string) => {
+    setTrades((prevTrades) =>
+      prevTrades.map((trade) =>
+        trade.tradeId === id ? { ...trade, selected: !trade.selected } : trade
+      )
     );
-    setTrades(updatedTrades);
-    setSelectedTrades([]); // Clear selection after deletion
-    setError(null);
   };
 
-  const mergeTrades = () => {
+  const handleMergeTrades = () => {
+    const selectedTrades = trades.filter((trade) => trade.selected);
+
     if (selectedTrades.length < 2) {
-      setError("Please select at least 2 trades to merge");
+      alert("Select at least two trades to merge.");
       return;
     }
 
-    // Get selected trades and remaining trades
-    const selectedTradeObjects = trades.filter((trade) =>
-      selectedTrades.includes(trade.tradeId)
-    );
-    const otherTrades = trades.filter(
-      (trade) => !selectedTrades.includes(trade.tradeId)
-    );
-
-    // Sort selected trades by open date
-    selectedTradeObjects.sort(
-      (a, b) => new Date(a.openDate).getTime() - new Date(b.openDate).getTime()
-    );
-
-    // Check if all selected trades have the same symbol
-    const allSameSymbol = selectedTradeObjects.every(
-      (trade) => trade.symbol === selectedTradeObjects[0].symbol
-    );
-    if (!allSameSymbol) {
-      setError("Cannot merge trades with different symbols");
+    const sides = [...new Set(selectedTrades.map((trade) => trade.side))];
+    if (sides.length > 1) {
+      alert("You can only merge trades with the same side.");
       return;
     }
+    const symbols = [...new Set(selectedTrades.map((trade) => trade.symbol))];
+    if (symbols.length > 1) {
+      alert("You can only merge trades with the same symbol.");
+      return;
+    }
+    const symbol = symbols[0];
 
-    // Calculate weighted average entry and exit prices
-    const totalQty = selectedTradeObjects.reduce(
-      (sum, trade) => sum + trade.qty,
-      0
-    );
-    const weightedEntry =
-      selectedTradeObjects.reduce(
-        (sum, trade) => sum + trade.entry * trade.qty,
-        0
-      ) / totalQty;
-    const weightedExit =
-      selectedTradeObjects.reduce(
-        (sum, trade) => sum + trade.exit * trade.qty,
-        0
-      ) / totalQty;
-
-    // Create a merged trade
     const mergedTrade: Trade = {
-      tradeId: `merged-${Date.now()}`,
-      openDate: selectedTradeObjects[0].openDate, // Earliest open date
-      closeDate:
-        selectedTradeObjects[selectedTradeObjects.length - 1].closeDate, // Latest close date
-      symbol: selectedTradeObjects[0].symbol,
-      side: selectedTradeObjects[0].side, // Use the side of the first trade
-      entry: parseFloat(weightedEntry.toFixed(2)),
-      exit: parseFloat(weightedExit.toFixed(2)),
-      qty: parseFloat(totalQty.toFixed(2)),
+      tradeId: uuidv4(),
+      symbol: symbol,
+      openDate: selectedTrades.reduce((minDate, trade) => {
+        const currentDate = parseDateString(trade.openDate);
+        const min = parseDateString(minDate);
+        console.log(currentDate, min);
+        return currentDate < min ? trade.openDate : minDate;
+      }, selectedTrades[0].openDate),
+      closeDate: selectedTrades.reduce((maxDate, trade) => {
+        const currentDate = parseDateString(trade.closeDate);
+        const max = parseDateString(maxDate);
+        return currentDate > max ? trade.closeDate : maxDate;
+      }, selectedTrades[0].closeDate),
+      pnl: selectedTrades.reduce((sum, trade) => sum + trade.pnl, 0),
+      status:
+        selectedTrades.reduce((sum, trade) => sum + trade.pnl, 0) >= 0
+          ? "TP"
+          : "SL",
+      side: selectedTrades[0].side, // Assuming all trades are of the same side
 
-      pnl: parseFloat(
-        selectedTradeObjects
-          .reduce((sum, trade) => sum + trade.pnl, 0)
-          .toFixed(2)
-      ),
-      status: selectedTradeObjects.some((trade) => trade.status === "tp")
-        ? "tp"
-        : "sl",
+      // Calculate Entry and Exit
+      entry:
+        selectedTrades[0].side === "BUY"
+          ? selectedTrades.reduce((minEntry, trade) => {
+              return trade.entry < minEntry ? trade.entry : minEntry;
+            }, selectedTrades[0].entry)
+          : selectedTrades.reduce((maxEntry, trade) => {
+              return trade.entry > maxEntry ? trade.entry : maxEntry;
+            }, selectedTrades[0].entry),
+
+      exit:
+        selectedTrades[0].side === "BUY"
+          ? selectedTrades.reduce((maxExit, trade) => {
+              return trade.exit > maxExit ? trade.exit : maxExit;
+            }, selectedTrades[0].exit)
+          : selectedTrades.reduce((minExit, trade) => {
+              return trade.exit < minExit ? trade.exit : minExit;
+            }, selectedTrades[0].exit),
+
+      qty: selectedTrades.reduce((sum, trade) => sum + trade.qty, 0),
+      selected: false,
     };
 
-    // Update trades with the merged one
-    setTrades([...otherTrades, mergedTrade]);
-    setSelectedTrades([]); // Clear selection after merging
-    setError(null);
+    setTrades((prevTrades) => [
+      ...prevTrades.filter((trade) => !trade.selected),
+      mergedTrade,
+    ]);
+  };
+
+  const handleDeleteTrades = () => {
+    setTrades((prevTrades) => prevTrades.filter((trade) => !trade.selected));
+  };
+
+  const handleClick = () => {
+    setEditingCell(null);
   };
 
   return (
-    <div className="w-full">
-      <button
-        onClick={() => setIsDialogOpen(true)}
-        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <Upload className="h-4 w-4" />
+          Import Trades
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        onClick={handleClick}
+        className="max-w-[90vw] max-h-[90vh] w-full h-full flex flex-col p-5 mb-10"
       >
-        <Import className="w-5 h-5 mr-2" />
-        Import Trades
-      </button>
-      <Dialog.Root open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed top-[5%] left-[5%] w-[90%] h-[90%] bg-white rounded-lg shadow-xl p-6 overflow-y-auto">
-            <div className=" flex justify-between items-center">
-              <div className="flex space-x-4">
-                {selectedTrades.length > 0 && (
-                  <>
-                    <button
-                      onClick={mergeTrades}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                      disabled={selectedTrades.length < 2}
-                    >
-                      <Merge className="w-5 h-5 mr-2" />
-                      Merge Selected ({selectedTrades.length})
-                    </button>
-                    <button
-                      onClick={deleteTrades}
-                      className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5 mr-2" />
-                      Delete Selected ({selectedTrades.length})
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex justify-between items-start mb-6">
-              <Dialog.Title className="text-xl font-semibold">
-                Import Trades
-              </Dialog.Title>
-              <Dialog.Close className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </Dialog.Close>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                <div className="flex items-center">
-                  <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-                  <p className="text-red-700">{error}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-6">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        <DialogHeader className=" pb-2">
+          <DialogTitle className="flex justify-between items-center">
+            <span>Import Trades</span>
+            <div className="flex gap-2">
+              {/* {isDirty && (
+                <Button
+                  onClick={handleSave}
                   disabled={isLoading}
+                  className="gap-2"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-5 h-5 mr-2" />
-                      Upload Trade Screenshot
-                    </>
-                  )}
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*"
-                  className="hidden"
+                  {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              )} */}
+              {/* <Button variant="outline" onClick={() => setIsOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button> */}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1  space-y-4 overflow-hidden">
+          <div
+            ref={dropZoneRef}
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            onPaste={handlePaste}
+            className={cn(
+              "border-2 border-dashed rounded-lg p-4 text-center transition-colors overflow-auto",
+              "hover:border-zinc-400 cursor-pointer",
+              uploadedImage ? "border-green-500" : "border-zinc-200",
+              "max-h-[20vh]"
+            )}
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                Processing image...
+              </div>
+            ) : uploadedImage ? (
+              <div className="space-y-4">
+                <img
+                  src={uploadedImage}
+                  alt="Uploaded trade"
+                  className="w-full h-auto"
                 />
-                <p className="mt-2 text-sm text-gray-600">
+                <p className="text-sm text-zinc-500">
+                  Click or paste another image to replace
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Upload className="h-8 w-8 mx-auto text-zinc-400" />
+                <p>Drag & drop or paste a trade screenshot here</p>
+                <p className="text-sm text-zinc-500">
                   Supported formats: PNG, JPG, JPEG
                 </p>
               </div>
+            )}
+          </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => dispatch(addTradeToFirestore(trades))}
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    <Import className="w-5 h-5 mr-2" />
-                    Import Trades
-                  </button>
-                </div>
+          {trades.length > 0 && (
+            <div
+              className="border rounded-lg flex flex-col"
+              // style={{ height: "calc(60vh - 2rem)" }}
+            >
+              <div className="flex justify-end p-2 gap-2">
+                <Button variant="outline" onClick={handleMergeTrades}>
+                  {"(" +
+                    trades.filter((trade) => trade.selected).length +
+                    ") Merge"}
+                </Button>
+                <Button variant="default" onClick={handleDeleteTrades}>
+                  {"(" +
+                    trades.filter((trade) => trade.selected).length +
+                    ") Delete"}
+                </Button>
               </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto h-full">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedTrades(trades.map((t) => t.tradeId));
-                            } else {
-                              setSelectedTrades([]);
+              <div className="bg-white border-b">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[20px]"></TableHead>
+                      <TableHead className="w-[160px]">Open Date</TableHead>
+                      <TableHead className="w-[160px]">Close Date</TableHead>
+                      <TableHead className="w-[100px]">Symbol</TableHead>
+                      <TableHead className="w-[80px]">Side</TableHead>
+                      <TableHead className="w-[100px]">Entry</TableHead>
+                      <TableHead className="w-[100px]">Exit</TableHead>
+                      <TableHead className="w-[100px]">Quantity</TableHead>
+                      <TableHead className="w-[100px]">P&L</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                </Table>
+              </div>
+              <div
+                className="overflow-auto h-[30vh]"
+                onClick={(e) => {
+                  if (editingCell) {
+                    setEditingCell(null);
+                  }
+                }}
+              >
+                <Table>
+                  <TableBody>
+                    {trades.map((trade) => (
+                      <TableRow key={trade.tradeId}>
+                        <TableCell className="w-[20px]">
+                          <Checkbox
+                            checked={trade.selected || false}
+                            onCheckedChange={() =>
+                              handleRowSelect(trade.tradeId)
                             }
-                          }}
-                          checked={
-                            selectedTrades.length === trades.length &&
-                            trades.length > 0
-                          }
-                        />
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Open Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Close Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Symbol
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Side
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Entry
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Exit
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Qty
-                      </th>
-
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        P&L
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {trades.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={12}
-                          className="px-6 py-4 text-center text-sm text-gray-500"
-                        >
-                          <div className="flex flex-col items-center justify-center py-8">
-                            <AlertCircle className="w-12 h-12 text-gray-400 mb-3" />
-                            <p className="text-lg font-medium">
-                              No trades found
-                            </p>
-                            <p className="text-gray-500 mt-1">
-                              Click "Import Trades" to get started
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      trades.map((trade) => (
-                        <tr
-                          key={trade.tradeId}
-                          className={
-                            selectedTrades.includes(trade.tradeId)
-                              ? "bg-blue-50"
-                              : ""
-                          }
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                              checked={selectedTrades.includes(trade.tradeId)}
-                              onChange={() =>
-                                toggleTradeSelection(trade.tradeId)
+                          />
+                        </TableCell>
+                        <TableCell className="w-[160px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "openDate" ? (
+                            <DateTimePicker24h />
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "openDate",
+                                });
+                              }}
+                            >
+                              {trade.openDate}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[160px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "closeDate" ? (
+                            <DateTimePicker24h />
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "closeDate",
+                                });
+                              }}
+                            >
+                              {trade.closeDate}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "symbol" ? (
+                            <Input
+                              defaultValue={trade.symbol}
+                              autoFocus
+                              onBlur={(e) =>
+                                handleCellEdit(
+                                  trade.tradeId,
+                                  "symbol",
+                                  e.target.value
+                                )
                               }
                             />
-                          </td>
-                          {Object.keys(trade)
-                            .filter(
-                              (key) => key !== "tradeId" && key !== "selected"
-                            )
-                            .map((key) => {
-                              const field = key as keyof Trade;
-                              const isEditing =
-                                editingCell?.id === trade.tradeId &&
-                                editingCell?.field === field;
-
-                              // Format values for display
-                              let displayValue = String(trade[field]);
-                              if (field === "pnl") {
-                                const value = trade[field] as number;
-                                displayValue =
-                                  value >= 0
-                                    ? `$${value.toFixed(2)}`
-                                    : `-$${Math.abs(value).toFixed(2)}`;
-                              } else if (["entry", "exit"].includes(field)) {
-                                displayValue = (trade[field] as number).toFixed(
-                                  2
-                                );
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "symbol",
+                                });
+                              }}
+                            >
+                              {trade.symbol}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[80px]">
+                          <span
+                            className={cn(
+                              "px-2 py-1 rounded text-xs font-medium",
+                              trade.side === "BUY"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            )}
+                          >
+                            {trade.side}
+                          </span>
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "entry" ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              defaultValue={trade.entry}
+                              autoFocus
+                              onBlur={(e) =>
+                                handleCellEdit(
+                                  trade.tradeId,
+                                  "entry",
+                                  parseFloat(e.target.value)
+                                )
                               }
-
-                              // Apply styling based on field type
-                              let cellClass =
-                                "px-6 py-4 whitespace-nowrap text-sm";
-                              if (field === "pnl") {
-                                const value = trade[field] as number;
-                                cellClass +=
-                                  value >= 0
-                                    ? " text-green-600"
-                                    : " text-red-600";
-                              } else if (field === "side") {
-                                cellClass +=
-                                  trade[field] === "buy"
-                                    ? " text-green-600"
-                                    : " text-red-600";
-                              } else if (field === "status") {
-                                cellClass +=
-                                  trade[field] === "tp"
-                                    ? " text-green-600"
-                                    : " text-red-600";
+                            />
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "entry",
+                                });
+                              }}
+                            >
+                              {trade.entry}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "exit" ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              defaultValue={trade.exit}
+                              autoFocus
+                              onBlur={(e) =>
+                                handleCellEdit(
+                                  trade.tradeId,
+                                  "exit",
+                                  parseFloat(e.target.value)
+                                )
                               }
-
-                              return (
-                                <td
-                                  key={`${trade.tradeId}-${field}`}
-                                  className={cellClass}
-                                  onDoubleClick={() =>
-                                    handleCellClick(trade.tradeId, field)
-                                  }
-                                >
-                                  {isEditing ? (
-                                    <div className="flex items-center">
-                                      <input
-                                        type={
-                                          [
-                                            "entry",
-                                            "exit",
-                                            "qty",
-
-                                            "pnl",
-                                          ].includes(field)
-                                            ? "number"
-                                            : "text"
-                                        }
-                                        value={editValue}
-                                        onBlur={saveEdit}
-                                        onChange={handleCellEdit}
-                                        onKeyDown={handleKeyDown}
-                                        className=" w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-gray-300 "
-                                        autoFocus
-                                        step={
-                                          [
-                                            "entry",
-                                            "exit",
-                                            "qty",
-
-                                            "pnl",
-                                          ].includes(field)
-                                            ? "0.01"
-                                            : undefined
-                                        }
-                                      />
-                                      {/* <div className="ml-2 flex space-x-1">
-                                        <button
-                                          onClick={saveEdit}
-                                          className="text-green-600 hover:text-green-800"
-                                        >
-                                          <Check className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={cancelEdit}
-                                          className="text-red-600 hover:text-red-800"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
-                                      </div> */}
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-between group">
-                                      <span>{displayValue}</span>
-                                      <Edit2 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                            />
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "exit",
+                                });
+                              }}
+                            >
+                              {trade.exit}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          {editingCell?.id === trade.tradeId &&
+                          editingCell?.field === "qty" ? (
+                            <Input
+                              type="number"
+                              defaultValue={trade.qty}
+                              autoFocus
+                              onBlur={(e) =>
+                                handleCellEdit(
+                                  trade.tradeId,
+                                  "qty",
+                                  parseInt(e.target.value)
+                                )
+                              }
+                            />
+                          ) : (
+                            <div
+                              className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent immediate blur
+                                setEditingCell({
+                                  id: trade.tradeId,
+                                  field: "qty",
+                                });
+                              }}
+                            >
+                              {trade.qty}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          <span
+                            className={cn(
+                              "font-mono"
+                              // trade.pnl >= 0 ? "text-green-600" : "text-red-600"
+                            )}
+                          >
+                            ${trade.pnl}
+                          </span>
+                        </TableCell>
+                        <TableCell className="w-[100px]">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-zinc-100">
+                            {trade.status}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-
-              {trades.length > 0 && (
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                  <div className="text-sm text-gray-700">
-                    Showing {trades.length}{" "}
-                    {trades.length === 1 ? "trade" : "trades"}
-                  </div>
-                  <div className="flex space-x-2">
-                    <button className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                      First
-                    </button>
-                    <button className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                      &lt;
-                    </button>
-                    <button className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
-                      1
-                    </button>
-                    <button className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                      &gt;
-                    </button>
-                    <button className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                      Last
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-    </div>
+          )}
+        </div>
+        <div className="flex justify-end mt-4">
+          <Button
+            onClick={handleSave}
+            disabled={isDirty || isSaving}
+            className="align-self-end"
+          >
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
-};
-
-export default TradeJournal;
+}

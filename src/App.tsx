@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { DateRangePicker } from "./components/date-range-picker";
 import { TradingMetricsCards } from "./components/trading/TradingMetricsCards";
 import { RecentTrades } from "./components/trading/RecentTrades";
 import { TradingChart } from "./components/trading/TradingChart";
 import { AnalyticsTable } from "./components/analytics-table";
-import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { ChevronDown, Search } from "lucide-react";
 
 import { AppDispatch, RootState } from "./app/store";
 import { useDispatch, useSelector } from "react-redux";
 
-import TradeJournal from "./components/trading/TradeJournal";
+import ImportTrades from "./components/trading/TradeJournal";
 import { subscribeToTrades } from "./app/traceSlice";
 import { Trades } from "./components/Trades";
 
@@ -108,7 +108,7 @@ function App() {
       <main className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Trading Journal</h1>
-          <TradeJournal />
+          <ImportTrades />
           <DateRangePicker date={date} onChange={setDate} />
         </div>
 

@@ -1,19 +1,14 @@
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui/dialog";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/ui/button";
 
 interface AnalyticsDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   data: AnalyticsData[];
   currentItem: AnalyticsData;
-  onNavigate: (direction: 'prev' | 'next') => void;
+  onNavigate: (direction: "prev" | "next") => void;
 }
 
 interface ImageData {
@@ -23,21 +18,24 @@ interface ImageData {
 
 // Sample images for demonstration
 const sampleImages: Record<string, ImageData[]> = {
-  '1': [
+  "1": [
     {
-      url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800',
-      description: 'Analytics dashboard showing key performance metrics and growth trends.'
+      url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800",
+      description:
+        "Analytics dashboard showing key performance metrics and growth trends.",
     },
     {
-      url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800',
-      description: 'Team collaboration meeting discussing business strategy and metrics.'
-    }
+      url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800",
+      description:
+        "Team collaboration meeting discussing business strategy and metrics.",
+    },
   ],
-  '2': [
+  "2": [
     {
-      url: 'https://images.unsplash.com/photo-1543286386-713bdd548da4?w=800',
-      description: 'Sales performance visualization with detailed metrics breakdown.'
-    }
+      url: "https://images.unsplash.com/photo-1543286386-713bdd548da4?w=800",
+      description:
+        "Sales performance visualization with detailed metrics breakdown.",
+    },
   ],
   // Add more sample images for different IDs
 };
@@ -47,10 +45,10 @@ export function AnalyticsDetailsDialog({
   onClose,
   data,
   currentItem,
-  onNavigate
+  onNavigate,
 }: AnalyticsDetailsDialogProps) {
   const images = sampleImages[currentItem.id] || [];
-  const currentIndex = data.findIndex(item => item.id === currentItem.id);
+  const currentIndex = data.findIndex((item) => item.id === currentItem.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
@@ -67,13 +65,17 @@ export function AnalyticsDetailsDialog({
                   key={item.id}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
                     item.id === currentItem.id
-                      ? 'bg-gray-100 border-gray-300'
-                      : 'hover:bg-gray-50'
+                      ? "bg-gray-100 border-gray-300"
+                      : "hover:bg-gray-50"
                   }`}
-                  onClick={() => onNavigate(index < currentIndex ? 'prev' : 'next')}
+                  onClick={() =>
+                    onNavigate(index < currentIndex ? "prev" : "next")
+                  }
                 >
                   <p className="font-medium">{item.date}</p>
-                  <p className="text-sm text-gray-500">${item.revenue.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500">
+                    ${item.revenue.toLocaleString()}
+                  </p>
                 </div>
               ))}
             </div>
@@ -87,7 +89,9 @@ export function AnalyticsDetailsDialog({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Revenue</p>
-                    <p className="text-2xl font-bold">${currentItem.revenue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">
+                      ${currentItem.revenue.toLocaleString()}
+                    </p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Orders</p>
@@ -95,11 +99,15 @@ export function AnalyticsDetailsDialog({
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Customers</p>
-                    <p className="text-2xl font-bold">{currentItem.customers}</p>
+                    <p className="text-2xl font-bold">
+                      {currentItem.customers}
+                    </p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-500">Conversion Rate</p>
-                    <p className="text-2xl font-bold">{currentItem.conversionRate.toFixed(2)}%</p>
+                    <p className="text-2xl font-bold">
+                      {currentItem.conversionRate.toFixed(2)}%
+                    </p>
                   </div>
                 </div>
 
@@ -107,13 +115,17 @@ export function AnalyticsDetailsDialog({
                   <h3 className="font-medium mb-2">Additional Information</h3>
                   <div className="space-y-2">
                     <p className="text-sm">
-                      <span className="text-gray-500">Region:</span> {currentItem.region}
+                      <span className="text-gray-500">Region:</span>{" "}
+                      {currentItem.region}
                     </p>
                     <p className="text-sm">
-                      <span className="text-gray-500">Platform:</span> {currentItem.platform}
+                      <span className="text-gray-500">Platform:</span>{" "}
+                      {currentItem.platform}
                     </p>
                     <p className="text-sm">
-                      <span className="text-gray-500">Average Order Value:</span>{' '}
+                      <span className="text-gray-500">
+                        Average Order Value:
+                      </span>{" "}
                       ${currentItem.avgOrderValue.toFixed(2)}
                     </p>
                   </div>
@@ -143,7 +155,7 @@ export function AnalyticsDetailsDialog({
         <div className="absolute left-4 right-4 bottom-4 flex justify-between">
           <Button
             variant="outline"
-            onClick={() => onNavigate('prev')}
+            onClick={() => onNavigate("prev")}
             disabled={currentIndex === 0}
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
@@ -151,7 +163,7 @@ export function AnalyticsDetailsDialog({
           </Button>
           <Button
             variant="outline"
-            onClick={() => onNavigate('next')}
+            onClick={() => onNavigate("next")}
             disabled={currentIndex === data.length - 1}
           >
             Next

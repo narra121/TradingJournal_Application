@@ -16,8 +16,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+} from "@/ui/select";
+import { Button } from "@/ui/button";
 import { TradeDetailsDialogAnalytics } from "./trading/TradeDetailsDialog";
 import { CalendarView } from "./trading/CalendarView";
 import { RootState } from "@/app/store";

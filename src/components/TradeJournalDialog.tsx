@@ -5,19 +5,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@/ui/dialog";
+import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
+import { Label } from "@/ui/label";
+import { Checkbox } from "@/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/ui/select";
+import { Textarea } from "@/ui/textarea";
 import { Upload, X, AlertTriangle, TrendingUp, BarChart } from "lucide-react";
 import {
   ImageType,
@@ -29,6 +29,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/app/store";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { storage } from "@/app/firebase";
+import { setIsEditOpen } from "@/app/uiSlice";
 
 // --- IndexedDB Helper Functions ---
 const DB_NAME = "imageDB";
@@ -76,25 +77,20 @@ const getImageFromDB = async (url: string): Promise<File | null> => {
   });
 };
 
-interface TradeJournalDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  trade: TradeDetails;
-}
-
-export function TradeJournalDialog({
-  isOpen,
-  onClose,
-  trade,
-}: TradeJournalDialogProps) {
-  if (!isOpen) return null;
+export function TradeJournalDialog() {
   const dispatch: AppDispatch = useDispatch();
   const [images, setImages] = useState<
     { file: File; timeframe: string; description: string }[]
   >([]);
 
-  const tradeData: Trade | undefined = useSelector((state: RootState) =>
-    state.TradeData.trades.find((t) => t.trade.tradeId === trade.tradeId)
+  const selectedtrade: TradeDetails = useSelector(
+    (state: RootState) => state.UI.selectedItem!
+  );
+  const tradeData: Trade = useSelector(
+    (state: RootState) =>
+      state.TradeData.trades.find(
+        (t) => t.trade.tradeId === selectedtrade.tradeId
+      )!
   );
 
   const initialPsychology: Trade["psychology"] = tradeData?.psychology || {
@@ -167,6 +163,10 @@ export function TradeJournalDialog({
     setImages(fetchedImages);
   }, []);
 
+  const isOpen = useSelector((state: RootState) => state.UI.isEditOpen);
+  const handleClose = () => {
+    dispatch(setIsEditOpen(false));
+  };
   useEffect(() => {
     if (isOpen && tradeData) {
       setPsychology(tradeData.psychology || initialPsychology);
@@ -277,7 +277,7 @@ export function TradeJournalDialog({
         metrics,
       };
       await dispatch(updateTradeInFirestore(updatedTrade));
-      onClose();
+      // onClose();
     } catch (error) {
       console.error("Error saving trade:", error);
     }
@@ -289,7 +289,7 @@ export function TradeJournalDialog({
     analysis,
     metrics,
     tradeData,
-    onClose,
+    // onClose,
   ]);
 
   const handlePsychologyChange = useCallback(
@@ -335,14 +335,14 @@ export function TradeJournalDialog({
   );
   if (!isOpen || !tradeData) return null;
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-[90vw] h-[90vh] flex gap-4">
         <DialogClose asChild>
           <Button variant="ghost" className="absolute top-4 right-4">
             <X className="w-4 h-4" />
           </Button>
         </DialogClose>
-        <div className="w-1/5 border-r pr-4">
+        <div className="w-1/6 border-r pr-4 pl-4">
           <DialogHeader>
             <DialogTitle>Trade Details</DialogTitle>
           </DialogHeader>
@@ -388,76 +388,171 @@ export function TradeJournalDialog({
           </div>
         </div>
 
-        <div className="w-4/5 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" /> Trade Psychology
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="greedy"
-                    checked={psychology.isGreedy}
-                    onCheckedChange={(checked) =>
-                      handlePsychologyChange("isGreedy", checked)
-                    }
-                  />
-                  <Label htmlFor="greedy">Greedy Trade</Label>
+        <div className="w-5/6 overflow-y-auto pl-2">
+          <div className="grid grid-cols-[52%_42%] gap-6">
+            <div className="flex flex-col space-y-4">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" /> Trade Psychology
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="greedy"
+                      checked={psychology.isGreedy}
+                      onCheckedChange={(checked) =>
+                        handlePsychologyChange("isGreedy", checked)
+                      }
+                    />
+                    <Label htmlFor="greedy">Greedy Trade</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="fomo"
+                      checked={psychology.isFomo}
+                      onCheckedChange={(checked) =>
+                        handlePsychologyChange("isFomo", checked)
+                      }
+                    />
+                    <Label htmlFor="fomo">FOMO Trade</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="revenge"
+                      checked={psychology.isRevenge}
+                      onCheckedChange={(checked) =>
+                        handlePsychologyChange("isRevenge", checked)
+                      }
+                    />
+                    <Label htmlFor="revenge">Revenge Trade</Label>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="fomo"
-                    checked={psychology.isFomo}
-                    onCheckedChange={(checked) =>
-                      handlePsychologyChange("isFomo", checked)
+                <div className="space-y-2">
+                  <Label>Emotional State</Label>
+                  <Select
+                    value={psychology.emotionalState}
+                    onValueChange={(value) =>
+                      handlePsychologyChange("emotionalState", value)
                     }
-                  />
-                  <Label htmlFor="fomo">FOMO Trade</Label>
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select emotional state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emotionalStates.map((state) => (
+                        <SelectItem key={state} value={state.toLowerCase()}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="revenge"
-                    checked={psychology.isRevenge}
-                    onCheckedChange={(checked) =>
-                      handlePsychologyChange("isRevenge", checked)
+                <div className="space-y-2">
+                  <Label>Trade Notes</Label>
+                  <Textarea
+                    placeholder="Enter your trade notes here..."
+                    value={psychology.notes}
+                    onChange={(e) =>
+                      handlePsychologyChange("notes", e.target.value)
                     }
                   />
-                  <Label htmlFor="revenge">Revenge Trade</Label>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Emotional State</Label>
-                <Select
-                  value={psychology.emotionalState}
-                  onValueChange={(value) =>
-                    handlePsychologyChange("emotionalState", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select emotional state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {emotionalStates.map((state) => (
-                      <SelectItem key={state} value={state.toLowerCase()}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Trade Notes</Label>
-                <Textarea
-                  placeholder="Enter your trade notes here..."
-                  value={psychology.notes}
-                  onChange={(e) =>
-                    handlePsychologyChange("notes", e.target.value)
-                  }
-                />
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <BarChart className="w-5 h-5" /> Additional Metrics
+                </h3>
+                <div className="space-y-2">
+                  <Label>Risk per Trade (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Enter risk percentage"
+                    value={metrics.riskPerTrade || ""}
+                    onChange={(e) =>
+                      handleMetricsChange(
+                        "riskPerTrade",
+                        parseFloat(e.target.value) || 0
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Stop Loss Deviation</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Enter stop loss deviation"
+                    value={metrics.stopLossDeviation || ""}
+                    onChange={(e) =>
+                      handleMetricsChange(
+                        "stopLossDeviation",
+                        parseFloat(e.target.value) || 0
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Deviation</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="Enter target deviation"
+                    value={metrics.targetDeviation || ""}
+                    onChange={(e) =>
+                      handleMetricsChange(
+                        "targetDeviation",
+                        parseFloat(e.target.value) || 0
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Market Conditions</Label>
+                  <Select
+                    value={metrics.marketConditions}
+                    onValueChange={(value) =>
+                      handleMetricsChange("marketConditions", value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select market condition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marketConditions.map((condition) => (
+                        <SelectItem
+                          key={condition}
+                          value={condition.toLowerCase()}
+                        >
+                          {condition}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Trading Session</Label>
+                  <Select
+                    value={metrics.tradingSession}
+                    onValueChange={(value) =>
+                      handleMetricsChange("tradingSession", value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select trading session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sessions.map((session) => (
+                        <SelectItem key={session} value={session.toLowerCase()}>
+                          {session}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
-
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" /> Trade Analysis
@@ -526,171 +621,73 @@ export function TradeJournalDialog({
                 </div>
               </div>
             </div>
-
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Upload className="w-5 h-5" /> Image Documentation
+            </h3>
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <BarChart className="w-5 h-5" /> Additional Metrics
-              </h3>
-              <div className="space-y-2">
-                <Label>Risk per Trade (%)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="Enter risk percentage"
-                  value={metrics.riskPerTrade || ""}
-                  onChange={(e) =>
-                    handleMetricsChange(
-                      "riskPerTrade",
-                      parseFloat(e.target.value) || 0
-                    )
-                  }
+              <div>
+                <Label htmlFor="image-upload" className="cursor-pointer">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 text-center hover:border-gray-400 transition-colors">
+                    <Upload className="w-8 h-8 mx-auto mb-2" />
+                    <p>Click to upload images</p>
+                  </div>
+                </Label>
+                <input
+                  id="image-upload"
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  title="Upload images"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Stop Loss Deviation</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="Enter stop loss deviation"
-                  value={metrics.stopLossDeviation || ""}
-                  onChange={(e) =>
-                    handleMetricsChange(
-                      "stopLossDeviation",
-                      parseFloat(e.target.value) || 0
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Target Deviation</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  placeholder="Enter target deviation"
-                  value={metrics.targetDeviation || ""}
-                  onChange={(e) =>
-                    handleMetricsChange(
-                      "targetDeviation",
-                      parseFloat(e.target.value) || 0
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Market Conditions</Label>
-                <Select
-                  value={metrics.marketConditions}
-                  onValueChange={(value) =>
-                    handleMetricsChange("marketConditions", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select market condition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {marketConditions.map((condition) => (
-                      <SelectItem
-                        key={condition}
-                        value={condition.toLowerCase()}
-                      >
-                        {condition}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Trading Session</Label>
-                <Select
-                  value={metrics.tradingSession}
-                  onValueChange={(value) =>
-                    handleMetricsChange("tradingSession", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select trading session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map((session) => (
-                      <SelectItem key={session} value={session.toLowerCase()}>
-                        {session}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Upload className="w-5 h-5" /> Image Documentation
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="image-upload" className="cursor-pointer">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                      <Upload className="w-8 h-8 mx-auto mb-2" />
-                      <p>Click to upload images</p>
-                    </div>
-                  </Label>
-                  <input
-                    id="image-upload"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                    title="Upload images"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {images.map((image, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-lg p-4 space-y-2"
-                    >
-                      <div className="relative">
-                        <img
-                          src={URL.createObjectURL(image.file)}
-                          alt={`Trade image ${index + 1}`}
-                          className="w-full h-40 object-cover rounded"
-                        />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-2 right-2"
-                          onClick={() => removeImage(index)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <Select
-                        value={image.timeframe}
-                        onValueChange={(value) =>
-                          handleImageTimeframeChange(index, value)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select timeframe" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timeframes.map((tf) => (
-                            <SelectItem key={tf} value={tf}>
-                              {tf}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Textarea
-                        placeholder="Image description"
-                        value={image.description}
-                        onChange={(e) =>
-                          handleImageDescriptionChange(index, e.target.value)
-                        }
+              <div className="grid grid-cols-2 gap-4">
+                {images.map((image, index) => (
+                  <div key={index} className="border rounded-lg p-4 space-y-2">
+                    <div className="relative">
+                      <img
+                        src={URL.createObjectURL(image.file)}
+                        alt={`Trade image ${index + 1}`}
+                        className="w-full h-40 object-cover rounded"
                       />
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2"
+                        onClick={() => removeImage(index)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
                     </div>
-                  ))}
-                </div>
+                    <Select
+                      value={image.timeframe}
+                      onValueChange={(value) =>
+                        handleImageTimeframeChange(index, value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select timeframe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {timeframes.map((tf) => (
+                          <SelectItem key={tf} value={tf}>
+                            {tf}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Image description"
+                      value={image.description}
+                      onChange={(e) =>
+                        handleImageDescriptionChange(index, e.target.value)
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </div>

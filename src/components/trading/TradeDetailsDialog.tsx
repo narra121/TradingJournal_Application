@@ -2,14 +2,9 @@ import React from "react";
 import { startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 
 import { format } from "date-fns";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/ui/button";
 import { useSelector } from "react-redux";
 import { Trade, TradeDetails } from "@/app/traceSlice";
 import { RootState } from "@/app/store";

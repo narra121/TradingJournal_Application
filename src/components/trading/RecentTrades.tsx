@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { Trade, TradeDetails } from "@/app/traceSlice";
 import { useSelector } from "react-redux";

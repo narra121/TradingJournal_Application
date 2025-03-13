@@ -7,8 +7,8 @@ import {
   DialogTitle,
   DialogTrigger, // Import DialogTrigger
   DialogClose, // Import DialogClose
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@/ui/dialog";
+import { ScrollArea } from "@/ui/scroll-area";
 import {
   Clock,
   TrendingUp,
@@ -18,35 +18,30 @@ import {
   LineChart,
   Edit, // Import Edit icon
 } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useState } from "react"; // Import useState
-import { Input } from "@/components/ui/input"; // Import Input
-import { Label } from "@/components/ui/label"; // Import Label
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
-import { Button } from "@/components/ui/button";
+import { Input } from "@/ui/input"; // Import Input
+import { Label } from "@/ui/label"; // Import Label
+import { Textarea } from "@/ui/textarea"; // Import Textarea
+import { Button } from "@/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/ui/select";
+import { setIsDetailsOpen, setIsEditOpen } from "@/app/uiSlice";
 
-interface TradeDetailsDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  trade: TradeDetails;
-}
-
-export function TradeDetailsDialog({
-  isOpen,
-  onClose,
-  trade,
-}: TradeDetailsDialogProps) {
-  if (!isOpen) return null;
+export function TradeDetailsDialog() {
+  const selectedtrade: TradeDetails = useSelector(
+    (state: RootState) => state.UI.selectedItem!
+  );
   const tradeData: Trade = useSelector(
     (state: RootState) =>
-      state.TradeData.trades.find((t) => t.trade.tradeId === trade.tradeId)!
+      state.TradeData.trades.find(
+        (t) => t.trade.tradeId === selectedtrade.tradeId
+      )!
   );
 
   // State for managing edit mode and image data
@@ -67,12 +62,7 @@ export function TradeDetailsDialog({
     );
   };
 
-  // Function to handle image update
   const handleUpdateImage = (index: number) => {
-    // Logic to actually update the image in your data store (Redux, context, etc.)
-    // This is a placeholder; you'll need to adapt it to your application's state management.
-    // Example: dispatch(updateImage({ tradeId: tradeData.trade.tradeId, index, updatedImage: editedImage[index] }));
-
     const updatedImages = [...tradeData.images];
     updatedImages[index] = {
       url: editedImage[index].url,
@@ -104,9 +94,14 @@ export function TradeDetailsDialog({
       return updatedImages;
     });
   };
+  const isOpen = useSelector((state: RootState) => state.UI.isDetailsOpen);
+  const dispatch = useDispatch();
+  const handleClose = () => {
+    dispatch(setIsDetailsOpen(false));
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-[90vw] h-[90vh] p-0 gap-0">
         <div className="grid grid-cols-[1fr,2fr] h-full">
           {/* Left side - Trade Information */}
