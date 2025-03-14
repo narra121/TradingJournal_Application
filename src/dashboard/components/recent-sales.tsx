@@ -1,67 +1,82 @@
 import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
+import { cn } from "@/lib/utils";
+import { Badge } from "../../ui/badge";
+import { ScrollArea } from "../../ui/scroll-area";
+import { ArrowDownIcon, ArrowUpIcon, TrendingUpIcon } from "lucide-react";
+import { useSelector } from "react-redux";
+import { RootState } from "@/app/store";
+import { TradeDetails } from "@/app/traceSlice";
 
-export function RecentSales() {
+interface TradeItemProps {
+  trade: TradeDetails;
+}
+
+const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
+  const isProfitable = trade.pnl && trade.pnl > 0;
+  const isLoss = trade.pnl && trade.pnl < 0;
+
   return (
-    <div className="space-y-8">
-      <div className="flex items-center">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src="/avatars/01.png" alt="Avatar" />
-          <AvatarFallback>OM</AvatarFallback>
-        </Avatar>
-        <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Olivia Martin</p>
-          <p className="text-sm text-muted-foreground">
-            olivia.martin@email.com
+    <div className="flex items-center p-4 rounded-lg transition-colors hover:bg-muted/50">
+      <Avatar className="h-10 w-10 border-2 border-border">
+        <AvatarImage
+          src={`https://pi.dicebear.com/7.x/initials/svg?seed=${trade.symbol}`}
+        />
+        <AvatarFallback className="">
+          {trade.symbol?.substring(0, 2).toUpperCase() || "TR"}
+        </AvatarFallback>
+      </Avatar>
+      <div className="ml-4 space-y-1 flex-1">
+        <div className="flex items-center">
+          <p className="text-sm font-medium leading-none">
+            {trade.symbol || "Unknown Symbol"}
           </p>
+          <Badge
+            variant={
+              trade.side.toLowerCase() === "buy" ? "default" : "secondary"
+            }
+            className="ml-2 capitalize"
+          >
+            {trade.side.toLowerCase()}
+          </Badge>
         </div>
-        <div className="ml-auto font-medium">+$1,999.00</div>
+        <p className="text-xs text-muted-foreground">
+          {trade.openDate || "Unknown Time"}
+        </p>
       </div>
-      <div className="flex items-center">
-        <Avatar className="flex h-9 w-9 items-center justify-center space-y-0 border">
-          <AvatarImage src="/avatars/02.png" alt="Avatar" />
-          <AvatarFallback>JL</AvatarFallback>
-        </Avatar>
-        <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Jackson Lee</p>
-          <p className="text-sm text-muted-foreground">jackson.lee@email.com</p>
+      <div
+        className={cn(
+          "font-medium tabular-nums text-right"
+          // isProfitable && "text-green-500",
+          // isLoss && "text-red-500"
+        )}
+      >
+        <div className="flex items-center gap-1 justify-end">
+          {isProfitable && <ArrowUpIcon className="w-4 h-4" />}
+          {isLoss && <ArrowDownIcon className="w-4 h-4" />}
+          {trade.pnl ? `$${Math.abs(trade.pnl).toFixed(2)}` : "N/A"}
         </div>
-        <div className="ml-auto font-medium">+$39.00</div>
-      </div>
-      <div className="flex items-center">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src="/avatars/03.png" alt="Avatar" />
-          <AvatarFallback>IN</AvatarFallback>
-        </Avatar>
-        <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Isabella Nguyen</p>
-          <p className="text-sm text-muted-foreground">
-            isabella.nguyen@email.com
-          </p>
-        </div>
-        <div className="ml-auto font-medium">+$299.00</div>
-      </div>
-      <div className="flex items-center">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src="/avatars/04.png" alt="Avatar" />
-          <AvatarFallback>WK</AvatarFallback>
-        </Avatar>
-        <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">William Kim</p>
-          <p className="text-sm text-muted-foreground">will@email.com</p>
-        </div>
-        <div className="ml-auto font-medium">+$99.00</div>
-      </div>
-      <div className="flex items-center">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src="/avatars/05.png" alt="Avatar" />
-          <AvatarFallback>SD</AvatarFallback>
-        </Avatar>
-        <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Sofia Davis</p>
-          <p className="text-sm text-muted-foreground">sofia.davis@email.com</p>
-        </div>
-        <div className="ml-auto font-medium">+$39.00</div>
       </div>
     </div>
+  );
+};
+
+export function RecentTrades() {
+  const trades: TradeDetails[] = useSelector((state: RootState) => {
+    return state.TradeData.trades.map((trade) => trade.trade);
+  });
+  return (
+    <ScrollArea className="h-[400px] pr-4">
+      <div className="space-y-1">
+        {trades.map((trade) => (
+          <TradeItem key={trade.tradeId} trade={trade} />
+        ))}
+        {trades.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+            <TrendingUpIcon className="w-12 h-12 mb-4 opacity-20" />
+            <p className="text-sm">No recent trades available.</p>
+          </div>
+        )}
+      </div>
+    </ScrollArea>
   );
 }

@@ -8,7 +8,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { CalendarDateRangePicker } from "./components/date-range-picker";
 import { Overview } from "./components/overview";
-import { RecentSales } from "./components/recent-sales";
+import { RecentTrades } from "./components/recent-sales";
 import { Search } from "./components/search";
 import TeamSwitcher from "./components/team-switcher";
 import { UserNav } from "./components/user-nav";
@@ -48,6 +48,25 @@ export default function DashboardPage() {
   const handleDateChange = (newDate: DateRange | undefined) => {
     setDate(newDate);
   };
+
+  const totalPnl = trades.reduce(
+    (sum, trade) => sum + parseFloat(trade.pnl.toString()),
+    0
+  );
+  const winningTrades = trades.filter(
+    (trade) => parseFloat(trade.pnl.toString()) > 0
+  );
+  const winRate =
+    trades.length > 0 ? (winningTrades.length / trades.length) * 100 : 0;
+  // Assuming duration is in milliseconds
+  const totalDuration = trades.reduce((sum, trade) => {
+    const openTime = new Date(trade.openDate).getTime();
+    const closeTime = new Date(trade.closeDate).getTime();
+    return sum + (closeTime - openTime);
+  }, 0);
+  const averageDurationMs =
+    trades.length > 0 ? totalDuration / trades.length : 0;
+  const averageDurationMinutes = averageDurationMs / (1000 * 60);
 
   return (
     <>
@@ -103,10 +122,7 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      $
-                      {trades
-                        .reduce((sum, trade) => sum + trade.pnl, 0)
-                        .toFixed(2)}
+                      ${totalPnl.toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       +20.1% from last month
@@ -134,7 +150,7 @@ export default function DashboardPage() {
                     </svg>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold"> {trades.length}</div>
+                    <div className="text-2xl font-bold">{trades.length}</div>
                     <p className="text-xs text-muted-foreground">
                       +180.1% from last month
                     </p>
@@ -160,7 +176,9 @@ export default function DashboardPage() {
                     </svg>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">+12,234</div>
+                    <div className="text-2xl font-bold">
+                      {winRate.toFixed(2)}%
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       +19% from last month
                     </p>
@@ -185,7 +203,9 @@ export default function DashboardPage() {
                     </svg>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">+573</div>
+                    <div className="text-2xl font-bold">
+                      {averageDurationMinutes.toFixed(2)} min
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       +201 since last hour
                     </p>
@@ -203,13 +223,13 @@ export default function DashboardPage() {
                 </Card>
                 <Card className="col-span-3">
                   <CardHeader>
-                    <CardTitle>Recent Sales</CardTitle>
+                    <CardTitle>Recent Trades</CardTitle>
                     <CardDescription>
                       You made 265 sales this month.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <RecentSales />
+                    <RecentTrades />
                   </CardContent>
                 </Card>
               </div>

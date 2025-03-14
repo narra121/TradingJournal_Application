@@ -1,62 +1,57 @@
-"use client"
+"use client";
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { useSelector } from "react-redux";
+import { RootState } from "@/app/store";
 
-const data = [
-  {
-    name: "Jan",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Feb",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Mar",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Apr",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "May",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Jun",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Jul",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Aug",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Sep",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Oct",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Nov",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-  {
-    name: "Dec",
-    total: Math.floor(Math.random() * 5000) + 1000,
-  },
-]
+interface ChartData {
+  name: string;
+  total: number;
+}
+
+const monthNames = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 export function Overview() {
+  const trades = useSelector((state: RootState) =>
+    state.TradeData.trades.map((trade) => trade.trade)
+  );
+
+  // Aggregate trade data by month
+  const monthlyData: ChartData[] = monthNames.map((monthName, monthIndex) => {
+    const monthlyTrades = trades.filter((trade) => {
+      const tradeDate = new Date(trade.openDate);
+      return tradeDate.getMonth() === monthIndex;
+    });
+
+    const totalPnl = monthlyTrades.reduce((sum, trade) => sum + trade.pnl, 0);
+    if (totalPnl == 0) {
+      return {
+        name: monthName,
+        total: 2,
+      };
+    }
+    return {
+      name: monthName,
+      total: totalPnl,
+    };
+  });
+
   return (
     <ResponsiveContainer width="100%" height={350}>
-      <BarChart data={data}>
+      <BarChart data={monthlyData}>
         <XAxis
           dataKey="name"
           stroke="#888888"
@@ -79,5 +74,5 @@ export function Overview() {
         />
       </BarChart>
     </ResponsiveContainer>
-  )
+  );
 }

@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     define: {
       "process.env": env,
     },
-    base: "/TradingJournal_Application/",
+    // base: "/TradingJournal_Application/",
     plugins: [react()],
     optimizeDeps: {
       exclude: ["lucide-react"],
