@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main # Change this to your main branch name (e.g., 'master')
+      - rollback-dd97dbef
 
 jobs:
   deploy:
