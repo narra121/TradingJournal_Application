@@ -9,7 +9,7 @@ import { taskSchema } from "./data/schema";
 import { TradeDetails } from "@/app/traceSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/app/store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TradeJournalDialog } from "@/components/TradeJournalDialog";
 import { TradeDetailsDialog } from "@/components/TradeDetailsDialog";
 import { set } from "date-fns";
@@ -30,17 +30,21 @@ function getTasks(data: TradeDetails[]): any {
 export default function TaskPage() {
   const dispatch = useDispatch();
   const trades: TradeDetails[] = useSelector((state: RootState) => {
-    const data = state.TradeData.trades.map((trade) => trade.trade);
-    if (data.length === 0) {
-      return data;
-    }
-    dispatch(setSelectedItem(data[0]));
-    return data;
+    return state.TradeData.trades
+      .filter((item) => item !== undefined && item.trade !== undefined)
+      .map((item) => {
+        return item.trade;
+      });
   });
-  const isEditOpen = useSelector((state: RootState) => state.UI.isEditOpen);
-
-  const selectedItem = useSelector((state: RootState) => state.UI.selectedItem);
-
+  const seletedTrade = useSelector((state: RootState) => state.UI.selectedItem);
+  useEffect(() => {
+    if (
+      trades.length > 0 &&
+      seletedTrade !== undefined &&
+      seletedTrade !== null
+    )
+      dispatch(setSelectedItem(trades[0]));
+  });
   const tasks = getTasks(trades);
 
   return (
