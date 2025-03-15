@@ -44,7 +44,7 @@ export default function TaskPage() {
       seletedTrade !== null
     )
       dispatch(setSelectedItem(trades[0]));
-  });
+  }, []);
   const tasks = getTasks(trades);
 
   return (
