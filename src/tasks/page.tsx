@@ -50,8 +50,12 @@ export default function TaskPage() {
   return (
     <>
       <DataTable data={tasks} columns={columns} />
-      <TradeJournalDialog />
-      <TradeDetailsDialog />
+      {seletedTrade && (
+        <>
+          <TradeJournalDialog />
+          <TradeDetailsDialog />
+        </>
+      )}
     </>
   );
 }
