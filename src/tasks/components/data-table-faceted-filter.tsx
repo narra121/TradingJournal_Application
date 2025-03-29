@@ -1,8 +1,12 @@
 import * as React from "react";
+import { useSelector } from "react-redux";
 import { Column } from "@tanstack/react-table";
 import { Check, PlusCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { RootState } from "@/app/store";
+import { Trade, TradeDetails } from "@/app/traceSlice";
+import { selectFacetedFilterOptions } from "@/app/selectors"; // Import the selector factory
 import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
 import {
@@ -20,20 +24,42 @@ import { Separator } from "../../ui/separator";
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
   title?: string;
-  options: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }[];
+  // options prop is removed
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+export function DataTableFacetedFilter<TData extends Trade, TValue>({
+  // Ensure TData extends Trade or use appropriate type
   column,
   title,
-  options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
+  // Create a stable selector instance for this component instance
+  const selectOptions = React.useMemo(selectFacetedFilterOptions, []);
+
+  // Use the memoized selector, passing the column ID
+  const options = useSelector((state: RootState) =>
+    selectOptions(state, column?.id as keyof TradeDetails | undefined)
+  );
+
+  // Remove the old useMemo block for deriving options
+  // const options = React.useMemo(() => { ... }, [column?.id, trades]);
+
   const facets = column?.getFacetedUniqueValues();
   const selectedValues = new Set(column?.getFilterValue() as string[]);
+
+  // Handle cases where options might be empty initially
+  if (!options || options.length === 0) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 border-dashed"
+        disabled
+      >
+        <PlusCircle className="mr-2 h-4 w-4" />
+        {title} (No options)
+      </Button>
+    );
+  }
 
   return (
     <Popover>
@@ -109,9 +135,10 @@ export function DataTableFacetedFilter<TData, TValue>({
                     >
                       <Check />
                     </div>
-                    {option.icon && (
+                    {/* Remove icon rendering logic as derived options don't have icons */}
+                    {/* {option.icon && (
                       <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                    )}
+                    )} */}
                     <span>{option.label}</span>
                     {facets?.get(option.value) && (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">

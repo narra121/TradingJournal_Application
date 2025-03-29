@@ -8,10 +8,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { CalendarDateRangePicker } from "./components/date-range-picker";
 import { Overview } from "./components/overview";
-import { RecentTrades } from "./components/recent-sales";
+import { RecentTrades } from "./components/recent-sales"; // Consider renaming this file/component if it shows trades
 import { Search } from "./components/search";
 import TeamSwitcher from "./components/team-switcher";
 import { UserNav } from "./components/user-nav";
+// Import the new chart components
+import { CumulativePnlChart } from "./components/cumulative-pnl-chart";
+import { PnlDistributionChart } from "./components/pnl-distribution-chart";
+import { WinRateBySetupChart } from "./components/winrate-by-setup-chart";
+import { DurationDistributionChart } from "./components/duration-distribution-chart";
 import TaskPage from "@/tasks/page";
 import { subscribeToTrades, TradeDetails } from "@/app/traceSlice";
 import { useDispatch, useSelector } from "react-redux";
@@ -232,6 +237,14 @@ export default function DashboardPage() {
                     <RecentTrades />
                   </CardContent>
                 </Card>
+              </div>
+              {/* Add new row for the new charts */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+                {/* Use grid-cols-2 for larger screens */}
+                <CumulativePnlChart />
+                <PnlDistributionChart />
+                <WinRateBySetupChart />
+                <DurationDistributionChart />
               </div>
             </TabsContent>
             <TabsContent value="trades">

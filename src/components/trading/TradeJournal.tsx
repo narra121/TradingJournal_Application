@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../../ui/dialog";
+} from "../../ui/dialog"; // Assuming DialogFooter might be needed later if not already used
 import {
   Table,
   TableBody,
@@ -16,7 +16,7 @@ import {
 } from "../../ui/table";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
-import { Loader2, Upload, X } from "lucide-react";
+import { Loader2, Upload, X, Check } from "lucide-react"; // Import Check icon
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 import { DateTimePicker24h } from "@/ui/DateTimePicker";
@@ -51,13 +51,17 @@ export function TradeImportDialog() {
     field: keyof Trade;
   } | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // For image processing
+  const [isSaving, setIsSaving] = useState(false); // For saving trades
+  const [isSaved, setIsSaved] = useState(false); // Track successful save
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const dispatch = useDispatch();
 
   const handleImageUpload = async (file: File) => {
     setIsLoading(true);
+    setIsDirty(false); // Reset dirty state on new upload
+    setIsSaved(false); // Reset saved state on new upload
     try {
       // Simulate API call to process image
       const reader = new FileReader();
@@ -95,8 +99,12 @@ export function TradeImportDialog() {
         selected: false, //Initialize selected to false
       }));
       setTrades(importedTrades);
+      if (importedTrades.length > 0) {
+        setIsDirty(true); // Set dirty to true after successful import with trades
+      }
     } catch (error) {
       console.error("Error processing image:", error);
+      setIsDirty(false); // Ensure dirty is false if import fails
     } finally {
       setIsLoading(false);
     }
@@ -139,19 +147,30 @@ export function TradeImportDialog() {
     );
     setEditingCell(null);
     setIsDirty(true);
+    setIsSaved(false); // Reset saved state on edit
   };
-  const dispatch = useDispatch();
+
   const handleSave = async () => {
     setIsSaving(true);
+    setIsSaved(false); // Reset saved state before attempting save
     try {
-      const a = trades.map((trade) => {
-        delete trade.selected;
-        return trade;
+      const tradesToSave = trades.map((trade) => {
+        const { selected, ...rest } = trade; // Exclude 'selected' property
+        return rest;
       });
-      dispatch(addTradeToFirestore(a as TradeDetails[]) as any);
+      // Assuming addTradeToFirestore returns a promise or can be awaited
+      await dispatch(
+        addTradeToFirestore(tradesToSave as TradeDetails[]) as any
+      );
+      setIsSaved(true); // Set saved state on success
+      setIsDirty(false); // Mark as not dirty *after* successful save
+    } catch (error) {
+      console.error("Error saving trades:", error);
+      // Optionally: show an error message to the user
+      setIsSaved(false); // Ensure saved state is false on error
+      // Keep isDirty true on save error so user can retry
     } finally {
       setIsSaving(false);
-      setIsDirty(false);
     }
   };
 
@@ -256,8 +275,9 @@ export function TradeImportDialog() {
         <DialogHeader className=" pb-2">
           <DialogTitle className="flex justify-between items-center">
             <span>Import Trades</span>
-            <div className="flex gap-2">
-              {/* {isDirty && (
+            {/* Removed the button from here */}
+            {/* <div className="flex gap-2"> */}
+            {/* {isDirty && (
                 <Button
                   onClick={handleSave}
                   disabled={isLoading}
@@ -267,10 +287,10 @@ export function TradeImportDialog() {
                   {isLoading ? "Saving..." : "Save Changes"}
                 </Button>
               )} */}
-              {/* <Button variant="outline" onClick={() => setIsOpen(false)}>
+            {/* <Button variant="outline" onClick={() => setIsOpen(false)}>
                 <X className="h-4 w-4" />
               </Button> */}
-            </div>
+            {/* </div> */}
           </DialogTitle>
         </DialogHeader>
 
@@ -563,15 +583,28 @@ export function TradeImportDialog() {
             </div>
           )}
         </div>
+        {/* Footer with the updated button */}
         <div className="flex justify-end mt-4">
-          <Button
-            onClick={handleSave}
-            disabled={isDirty || isSaving}
-            className="align-self-end"
-          >
-            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
+          {isSaved ? (
+            <Button
+              onClick={() => setIsOpen(false)}
+              className="align-self-end gap-2"
+            >
+              <Check className="h-4 w-4" /> Close
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSave}
+              // Enable if not saving AND (either dirty OR there are trades but not yet saved)
+              // Simplified: Enable if not saving AND there are trades AND (it's dirty OR it hasn't been saved yet)
+              // Let's refine the logic: Enable if not saving AND there are trades to save (isDirty is true)
+              disabled={isSaving || !isDirty} // Button is disabled if saving is in progress OR if there are no changes (isDirty is false)
+              className="align-self-end gap-2"
+            >
+              {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

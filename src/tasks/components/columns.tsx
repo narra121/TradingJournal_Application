@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid, startOfDay } from "date-fns"; // Import isValid and startOfDay
 
 import { Badge } from "../../ui/badge";
 import { Checkbox } from "../../ui/checkbox";
@@ -13,10 +13,12 @@ import { statuses } from "../data/data"; // Example, adjust as needed
 //import { Trade } from "../data/schema"; // Assuming you have a Trade schema
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
-import { TradeDetails } from "@/app/traceSlice";
+import { Trade, TradeDetails } from "@/app/traceSlice"; // Import Trade
 
+// Change definition to use Trade type
 export const columns: ColumnDef<TradeDetails>[] = [
   {
+    // No accessorKey needed, id is fine
     id: "select",
     header: ({ table }) => (
       <Checkbox
@@ -52,132 +54,247 @@ export const columns: ColumnDef<TradeDetails>[] = [
   //   enableHiding: false,
   // },
   {
+    id: "openDate", // Explicit ID
     accessorKey: "openDate",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Open Date" />
     ),
     cell: ({ row }) => {
-      const dateString = row.getValue("openDate") as string;
-      const date = parseISO(dateString);
-      const formattedDate = format(date, "dd MMM yyyy");
+      const dateString = row.getValue("openDate") as string | undefined; // Allow undefined
+      // Check if dateString exists before parsing
+      if (!dateString) {
+        return <div className="font-semibold text-muted-foreground">-</div>;
+      }
+      let date = parseISO(dateString);
+
+      // Check validity
+      if (!isValid(date)) {
+        // If invalid, try parsing as just a date (might lack time) or default
+        date = new Date(dateString); // Fallback parsing
+        if (!isValid(date)) {
+          return (
+            <div className="font-semibold text-muted-foreground">
+              Invalid Date
+            </div>
+          ); // Handle completely invalid dates
+        }
+        // If date part is valid but time might be missing, default to start of day
+        date = startOfDay(date);
+      }
+
+      // Check if the original string contained time info (e.g., includes 'T' or ':')
+      const hasTime = dateString?.includes("T") || dateString?.includes(":");
+      const formatString = hasTime
+        ? "dd MMM yyyy, HH:mm:ss"
+        : "dd MMM yyyy, 00:00:00";
+      const formattedDate = format(date, formatString);
+
       return <div className="font-semibold">{formattedDate}</div>;
     },
     enableSorting: true,
+    // Filter function for date columns (compares date part only)
+    filterFn: (row, columnId, value: string[]) => {
+      // Use columnId
+      if (!value || value.length === 0) return true;
+      const dateString = row.getValue(columnId) as string | undefined; // Allow undefined
+      if (!dateString) return false; // Don't include rows with no date if filtering by date
+
+      let date = parseISO(dateString);
+      if (!isValid(date)) {
+        date = new Date(dateString); // Fallback parsing
+      }
+      if (!isValid(date)) return false; // Don't include invalid dates in results
+
+      const rowDateFormatted = format(startOfDay(date), "yyyy-MM-dd"); // Compare date part
+      return value.includes(rowDateFormatted);
+    },
   },
   {
+    id: "closeDate", // Explicit ID
     accessorKey: "closeDate",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Close Date" />
     ),
-    cell: ({ row }) => <div>{row.getValue("closeDate")}</div>,
+    cell: ({ row }) => {
+      const dateString = row.getValue("closeDate") as string | undefined; // Allow undefined
+
+      // Handle potentially empty or null close dates
+      if (!dateString) {
+        return <div className="text-muted-foreground">-</div>;
+      }
+
+      let date = parseISO(dateString);
+
+      if (!isValid(date)) {
+        date = new Date(dateString);
+        if (!isValid(date)) {
+          return <div className="text-muted-foreground">Invalid Date</div>;
+        }
+        date = startOfDay(date);
+      }
+
+      const hasTime = dateString?.includes("T") || dateString?.includes(":");
+      const formatString = hasTime
+        ? "dd MMM yyyy, HH:mm:ss"
+        : "dd MMM yyyy, 00:00:00";
+      const formattedDate = format(date, formatString);
+
+      return <div>{formattedDate}</div>;
+    },
     enableSorting: true,
+    // Filter function for date columns (compares date part only)
+    filterFn: (row, columnId, value: string[]) => {
+      // Use columnId
+      if (!value || value.length === 0) return true;
+      const dateString = row.getValue(columnId) as string | undefined; // Allow undefined
+
+      // Handle empty close dates - don't filter them out if no specific date is selected
+      if (!dateString) return false; // If filtering by date, exclude rows with no close date
+
+      let date = parseISO(dateString);
+      if (!isValid(date)) {
+        date = new Date(dateString); // Fallback parsing
+      }
+      if (!isValid(date)) return false; // Don't include invalid dates
+
+      const rowDateFormatted = format(startOfDay(date), "yyyy-MM-dd"); // Compare date part
+      return value.includes(rowDateFormatted);
+    },
   },
   {
+    id: "symbol", // Explicit ID
     accessorKey: "symbol",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Symbol" />
     ),
-    cell: ({ row }) => (
-      <Badge variant="outline">
-        {(row.getValue("symbol") as String).toLocaleUpperCase()}
-      </Badge>
-    ), // Example formatting
+    cell: ({ row }) => {
+      const symbol = row.getValue("symbol") as string | undefined;
+      return (
+        <Badge variant="outline">
+          {/* Use optional chaining */}
+          {symbol?.toLocaleUpperCase() ?? "-"}
+        </Badge>
+      );
+    },
     enableSorting: true,
+    // Use the standard function for array inclusion
+    filterFn: "arrIncludesSome",
   },
   {
+    id: "side", // Explicit ID
     accessorKey: "side",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Side" />
     ),
     cell: ({ row }) => {
-      const side = row.getValue("side");
+      const side = row.getValue("side") as string | undefined;
       return (
-        <Badge variant="outline">{(side as String).toLocaleUpperCase()}</Badge>
+        <Badge variant="outline">{side?.toLocaleUpperCase() ?? "-"}</Badge>
       );
     },
     enableSorting: true,
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
-    },
+    // Use the standard function for array inclusion
+    filterFn: "arrIncludesSome",
   },
   {
+    id: "entry", // Explicit ID
     accessorKey: "entry",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Entry Price" />
     ),
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("entry"));
+      const amount = row.getValue("entry") as number | undefined; // Cast to expected type
+      // Check if amount is a valid number before formatting
+      const formattedAmount =
+        typeof amount === "number" && !isNaN(amount) // Add isNaN check
+          ? new Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "USD",
+            }).format(amount)
+          : "-";
 
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-
-      return <div className="">{formatted}</div>;
+      return <div className="">{formattedAmount}</div>;
     }, // Format as currency
     enableSorting: true,
   },
   {
+    id: "exit", // Explicit ID
     accessorKey: "exit",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Exit Price" />
     ),
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("exit"));
+      const amount = row.getValue("exit") as number | undefined; // Cast to expected type
+      const formattedAmount =
+        typeof amount === "number" && !isNaN(amount) // Add isNaN check
+          ? new Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "USD",
+            }).format(amount)
+          : "-";
 
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-
-      return <div className="">{formatted}</div>;
+      return <div className="">{formattedAmount}</div>;
     }, // Format as currency
     enableSorting: true,
   },
   {
+    id: "qty", // Explicit ID
     accessorKey: "qty",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Quantity" />
     ),
-    cell: ({ row }) => <div>{row.getValue("qty") + " Lots"}</div>,
+    cell: ({ row }) => {
+      const qty = row.getValue("qty");
+      return <div>{typeof qty === "number" ? `${qty} Lots` : "-"}</div>;
+    },
     enableSorting: true,
+    // Use the standard function for array inclusion
+    filterFn: "arrIncludesSome",
   },
   {
+    id: "pnl", // Explicit ID
     accessorKey: "pnl",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="PnL" />
     ),
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("pnl"));
+      const amount = row.getValue("pnl") as number | undefined; // Cast to expected type
+      const formattedAmount =
+        typeof amount === "number" && !isNaN(amount) // Add isNaN check
+          ? new Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "USD",
+            }).format(amount)
+          : "-";
 
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-
-      return <div className="font-semibold">{formatted}</div>;
+      return <div className="font-semibold">{formattedAmount}</div>;
     },
     enableSorting: true,
+    // Adjust filterFn to check if the stringified PnL value is in the selected array
+    filterFn: (row, columnId, value) => {
+      // Use columnId
+      if (!value || value.length === 0) return true;
+      const pnlValue = row.getValue(columnId);
+      // Ensure pnlValue is not null/undefined before converting to string
+      return pnlValue !== null && pnlValue !== undefined
+        ? value.includes(String(pnlValue))
+        : false;
+    },
   },
   {
+    id: "status", // Explicit ID
     accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const status = row.getValue("status");
+      const status = row.getValue("status") as string | undefined;
       return (
-        <Badge variant="outline">
-          {(status as String).toLocaleUpperCase()}
-        </Badge>
+        <Badge variant="outline">{status?.toLocaleUpperCase() ?? "-"}</Badge>
       );
     },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
-    },
+    // Use the standard function for array inclusion
+    filterFn: "arrIncludesSome",
     enableSorting: true,
   },
 

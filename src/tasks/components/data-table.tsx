@@ -43,7 +43,10 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  // Set default sorting to openDate descending
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "openDate", desc: true },
+  ]);
 
   const table = useReactTable({
     data,
@@ -69,6 +72,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
+      {/* Pass table instance to toolbar - Need to ensure DataTableToolbar doesn't expect Trade type */}
       <DataTableToolbar table={table} />
       <div className="rounded-md border">
         <Table>

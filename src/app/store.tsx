@@ -9,6 +9,16 @@ const store = configureStore({
     Auth: authSliceReducer,
     UI: uiSlice,
   },
+  // Customize middleware to ignore non-serializable unsubscribe function
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        // Ignore these action types
+        ignoredActions: ["trades/subscribeToTrades/fulfilled"],
+        // Ignore this field in the action payload for the specific action
+        // ignoredActionPaths: ['payload'], // Alternative: ignore the payload path directly
+      },
+    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

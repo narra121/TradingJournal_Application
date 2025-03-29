@@ -166,7 +166,7 @@ export const subscribeToTrades = createAsyncThunk(
           console.log("Trades:", trades);
           dispatch(
             tradesSlice.actions.setTrades(
-              trades.filter((item) => item != undefined)
+              trades.filter((item): item is Trade => item !== undefined) // Filter out undefined trades
             )
           ); // Update Redux store
         },
@@ -193,16 +193,21 @@ export const addTradeToFirestore = createAsyncThunk(
       if (Array.isArray(trades)) {
         // Batch insert for multiple trades
         const batch = writeBatch(db);
-        trades.forEach((trade) => {
-          if (trade === undefined) {
+        trades.forEach((tradeDetail: TradeDetails) => {
+          // Ensure type is TradeDetails
+          if (tradeDetail === undefined) {
             throw new Error("trade is undefined");
           }
-          if (!trade.tradeId)
-            throw new Error("tradeId is required for each trade");
-          const tradeDocRef = doc(db, `users/${userId}/trades`, trade.tradeId);
+          // if (!trade.tradeId) // tradeId is in TradeDetails now
+          //   throw new Error("tradeId is required for each trade");
+          const tradeDocRef = doc(
+            db,
+            `users/${userId}/trades`,
+            tradeDetail.tradeId
+          );
           batch.set(tradeDocRef, {
-            tradeId: trade.tradeId,
-            trade: trade,
+            tradeId: tradeDetail.tradeId,
+            trade: tradeDetail,
             images: [],
             psychology: {
               isGreedy: false,
@@ -226,7 +231,34 @@ export const addTradeToFirestore = createAsyncThunk(
           } as Trade);
         });
         await batch.commit();
-        return trades;
+
+        // Transform TradeDetails[] to Trade[]
+        const newTrades: Trade[] = trades.map((tradeDetail) => ({
+          tradeId: tradeDetail.tradeId,
+          trade: tradeDetail,
+          images: [],
+          psychology: {
+            isGreedy: false,
+            isFomo: false,
+            isRevenge: false,
+            emotionalState: "",
+            notes: "",
+          },
+          analysis: {
+            riskRewardRatio: 0,
+            setupType: "",
+            mistakes: [],
+          },
+          metrics: {
+            riskPerTrade: 0,
+            stopLossDeviation: 0,
+            targetDeviation: 0,
+            marketConditions: "",
+            tradingSession: "",
+          },
+        }));
+
+        return newTrades;
       }
     } catch (error: any) {
       return;
@@ -306,15 +338,15 @@ export const tradesSlice = createSlice({
     builder
       .addCase(addTradeToFirestore.fulfilled, (state, action) => {
         if (action.payload) {
-          state.trades.push(action.payload);
+          state.trades.push(...action.payload); // Push the transformed Trade objects
         }
       })
       .addCase(
         updateTradeInFirestore.fulfilled,
-        (state, action: PayloadAction<Trade>) => {
+        (state: any, action: PayloadAction<Trade>) => {
           if (action.payload) {
             const index = state.trades.findIndex(
-              (trade) => trade.tradeId === action.payload.tradeId
+              (trade: any) => trade.tradeId === action.payload.tradeId
             );
             if (index !== -1) {
               state.trades[index] = action.payload;
@@ -341,7 +373,7 @@ export const tradesSlice = createSlice({
         (action: any) => action.type.endsWith("/rejected"),
         (state, action: any) => {
           state.status = "failed";
-          state.error = action.payload || "An error occurred";
+          state.error = action.payload || "An unknown error occurred";
         }
       )
       .addMatcher(

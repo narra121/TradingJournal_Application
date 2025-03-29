@@ -6,22 +6,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger, // Import DialogTrigger
-  DialogClose, // Import DialogClose
+  DialogClose,
 } from "@/ui/dialog";
 import { ScrollArea } from "@/ui/scroll-area";
 import {
   Clock,
+  Loader2, // Import Loader icon
   TrendingUp,
   BarChart,
   AlertTriangle,
   DollarSign,
   LineChart,
-  Edit, // Import Edit icon
+  Edit,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { useState } from "react"; // Import useState
-import { Input } from "@/ui/input"; // Import Input
-import { Label } from "@/ui/label"; // Import Label
+import { useState, useCallback, useEffect } from "react";
+import { Input } from "@/ui/input";
+import { Label } from "@/ui/label";
 import { Textarea } from "@/ui/textarea"; // Import Textarea
 import { Button } from "@/ui/button";
 import {
@@ -34,50 +35,65 @@ import {
 import { setIsDetailsOpen, setIsEditOpen } from "@/app/uiSlice";
 
 export function TradeDetailsDialog() {
-  const selectedtrade: TradeDetails = useSelector(
-    (state: RootState) => state.UI.selectedItem!
-  );
-  const tradeData: Trade = useSelector(
-    (state: RootState) =>
-      state.TradeData.trades.find(
-        (t) => t.trade.tradeId === selectedtrade.tradeId
-      )!
+  const selectedtrade: TradeDetails | null = useSelector(
+    (state: RootState) => state.UI.selectedItem
   );
 
-  // State for managing edit mode and image data
+  // Handle case where selectedtrade is null
+  const tradeData: Trade | undefined = useSelector((state: RootState) => {
+    if (!selectedtrade) return undefined;
+    return state.TradeData.trades.find(
+      (t) => t.trade.tradeId === selectedtrade.tradeId
+    );
+  });
+
+  // State for managing edit mode, image data, loading, and save status
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editedImage, setEditedImage] = useState<
     { url: string; description: string; timeframe: string }[]
   >([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false);
 
   // Function to handle image edit
   const handleEditImage = (index: number) => {
     setEditIndex(index);
+    // Reset save status when starting a new edit
+    setIsSavedSuccessfully(false);
+    setIsLoading(false); // Ensure loading is false when starting edit
     setEditedImage(
-      tradeData.images.map((image) => ({
+      tradeData?.images?.map((image) => ({
         url: image.url,
         description: image.description,
         timeframe: image.timeframe,
-      }))
+      })) || []
     );
   };
 
-  const handleUpdateImage = (index: number) => {
+  const handleUpdateImage = async (index: number) => {
+    if (!tradeData?.images || !editedImage[index] || isLoading) return; // Prevent multiple saves
+
+    setIsLoading(true);
+    setIsSavedSuccessfully(false); // Reset save status on new attempt
+
+    // Simulate API call/update logic
+    await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate network delay
+
+    // --- Replace with actual Redux dispatch/API call ---
+    console.log("Simulating image update:", editedImage[index]);
     const updatedImages = [...tradeData.images];
     updatedImages[index] = {
       url: editedImage[index].url,
       description: editedImage[index].description,
       timeframe: editedImage[index].timeframe,
     };
-
-    //   console.log("new", updatedImages)
-
-    // Dispatch an action to update the tradeData.images in your Redux store
     // dispatch(updateTradeImages({ tradeId: tradeData.trade.tradeId, images: updatedImages }));
+    // --- End of simulation ---
 
-    console.log("Updated Image:", editedImage);
-
-    setEditIndex(null); // Exit edit mode
+    setIsLoading(false);
+    setIsSavedSuccessfully(true); // Mark as saved
+    // Keep editIndex null or manage as needed after save
+    // setEditIndex(null); // Keep user in edit view but show "Close" button
   };
 
   const handleImageChange = (
@@ -85,6 +101,10 @@ export function TradeDetailsDialog() {
     field: "url" | "description" | "timeframe",
     value: string
   ) => {
+    // If user edits after successful save, reset the button state
+    if (isSavedSuccessfully) {
+      setIsSavedSuccessfully(false);
+    }
     setEditedImage((prevImages) => {
       const updatedImages = [...prevImages];
       updatedImages[index] = {
@@ -109,7 +129,7 @@ export function TradeDetailsDialog() {
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                 <LineChart className="w-6 h-6 text-primary" />
-                {tradeData.trade.symbol} Trade Details
+                {tradeData?.trade?.symbol} Trade Details
               </DialogTitle>
             </DialogHeader>
 
@@ -126,24 +146,26 @@ export function TradeDetailsDialog() {
                       <p className="text-sm text-muted-foreground">Side</p>
                       <p
                         className={`text-xl font-bold ${
-                          tradeData.trade.side === "buy"
+                          tradeData?.trade?.side === "buy"
                             ? "text-green-500"
                             : "text-red-500"
                         }`}
                       >
-                        {tradeData.trade.side.toUpperCase()}
+                        {tradeData?.trade?.side?.toUpperCase()}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">Quantity</p>
-                      <p className="text-xl font-bold">{tradeData.trade.qty}</p>
+                      <p className="text-xl font-bold">
+                        {tradeData?.trade?.qty}
+                      </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">
                         Entry Price
                       </p>
                       <p className="text-xl font-bold">
-                        ${tradeData.trade.entry}
+                        ${tradeData?.trade?.entry}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -151,7 +173,7 @@ export function TradeDetailsDialog() {
                         Exit Price
                       </p>
                       <p className="text-xl font-bold">
-                        ${tradeData.trade.entry}
+                        ${tradeData?.trade?.entry}
                       </p>
                     </div>
                     <div className="col-span-2 bg-muted/50 rounded-lg p-4">
@@ -160,12 +182,12 @@ export function TradeDetailsDialog() {
                       </p>
                       <p
                         className={`text-2xl font-bold ${
-                          tradeData.trade.pnl >= 0
+                          tradeData?.trade?.pnl ?? 0 >= 0
                             ? "text-green-500"
                             : "text-red-500"
                         }`}
                       >
-                        ${tradeData.trade.pnl.toFixed(2)}
+                        ${tradeData?.trade?.pnl?.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -179,17 +201,17 @@ export function TradeDetailsDialog() {
                   </h3>
                   <div className="space-y-4">
                     <div className="flex gap-2 flex-wrap">
-                      {tradeData.psychology.isGreedy && (
+                      {tradeData?.psychology?.isGreedy && (
                         <span className="bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           Greedy Trade
                         </span>
                       )}
-                      {tradeData.psychology.isFomo && (
+                      {tradeData?.psychology?.isFomo && (
                         <span className="bg-orange-100 text-orange-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           FOMO Trade
                         </span>
                       )}
-                      {tradeData.psychology.isRevenge && (
+                      {tradeData?.psychology?.isRevenge && (
                         <span className="bg-red-100 text-red-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           Revenge Trade
                         </span>
@@ -200,13 +222,13 @@ export function TradeDetailsDialog() {
                         Emotional State
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.psychology.emotionalState}
+                        {tradeData?.psychology?.emotionalState}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">Notes</p>
                       <p className="text-sm mt-1">
-                        {tradeData.psychology.notes}
+                        {tradeData?.psychology?.notes}
                       </p>
                     </div>
                   </div>
@@ -225,7 +247,7 @@ export function TradeDetailsDialog() {
                           Risk/Reward Ratio
                         </p>
                         <p className="text-lg font-semibold">
-                          {tradeData.analysis.riskRewardRatio}:1
+                          {tradeData?.analysis?.riskRewardRatio}:1
                         </p>
                       </div>
                       <div className="bg-muted/50 rounded-lg p-4">
@@ -233,7 +255,7 @@ export function TradeDetailsDialog() {
                           Setup Type
                         </p>
                         <p className="text-lg font-semibold">
-                          {tradeData.analysis.setupType}
+                          {tradeData?.analysis?.setupType}
                         </p>
                       </div>
                     </div>
@@ -242,14 +264,16 @@ export function TradeDetailsDialog() {
                         Mistakes
                       </p>
                       <div className="flex gap-2 flex-wrap">
-                        {tradeData.analysis.mistakes.map((mistake, index) => (
-                          <span
-                            key={index}
-                            className="bg-red-100 text-red-800 px-3 py-1.5 rounded-full text-sm font-medium"
-                          >
-                            {mistake}
-                          </span>
-                        ))}
+                        {tradeData?.analysis?.mistakes?.map(
+                          (mistake, index) => (
+                            <span
+                              key={index}
+                              className="bg-red-100 text-red-800 px-3 py-1.5 rounded-full text-sm font-medium"
+                            >
+                              {mistake}
+                            </span>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>
@@ -267,7 +291,7 @@ export function TradeDetailsDialog() {
                         Risk per Trade
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.metrics.riskPerTrade}%
+                        {tradeData?.metrics?.riskPerTrade}%
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -275,7 +299,7 @@ export function TradeDetailsDialog() {
                         Stop Loss Deviation
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.metrics.stopLossDeviation}
+                        {tradeData?.metrics?.stopLossDeviation}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -283,15 +307,15 @@ export function TradeDetailsDialog() {
                         Target Deviation
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.metrics.targetDeviation}
+                        {tradeData?.metrics?.targetDeviation}
                       </p>
                     </div>
-                    <div className="bg-muted/50 rounded-lg p-4">
+                    <div className="col-span-2 bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">
                         Market Conditions
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.metrics.marketConditions}
+                        {tradeData?.metrics?.marketConditions}
                       </p>
                     </div>
                     <div className="col-span-2 bg-muted/50 rounded-lg p-4">
@@ -299,7 +323,7 @@ export function TradeDetailsDialog() {
                         Trading Session
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData.metrics.tradingSession}
+                        {tradeData?.metrics?.tradingSession}
                       </p>
                     </div>
                   </div>
@@ -311,18 +335,20 @@ export function TradeDetailsDialog() {
           {/* Right side - Images */}
           <ScrollArea className="h-[90vh] bg-muted/30">
             <div className="space-y-6 p-6">
-              {tradeData.images.map((image, index) => (
+              {tradeData?.images?.map((image, index) => (
                 <div key={index} className="bg-card rounded-lg overflow-hidden">
                   {editIndex === index ? (
+                    // Edit Mode JSX
                     <>
                       <div className="p-4 bg-muted/50 border-b flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-muted-foreground" />
                           <Select
-                            value={editedImage[index].timeframe}
+                            value={editedImage[index]?.timeframe || ""} // Add fallback for safety
                             onValueChange={(value) =>
                               handleImageChange(index, "timeframe", value)
                             }
+                            disabled={isLoading} // Disable select while loading
                           >
                             <SelectTrigger className="w-[180px]">
                               <SelectValue placeholder="Select Timeframe" />
@@ -339,29 +365,43 @@ export function TradeDetailsDialog() {
                           </Select>
                         </div>
                         <div>
-                          <Button
-                            variant="secondary"
-                            className="mr-2"
-                            onClick={() => handleUpdateImage(index)}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => setEditIndex(null)}
-                          >
-                            Cancel
-                          </Button>
+                          {isSavedSuccessfully ? (
+                            <Button variant="default" onClick={handleClose}>
+                              Close
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="secondary"
+                                className="mr-2"
+                                onClick={() => handleUpdateImage(index)}
+                                disabled={isLoading}
+                              >
+                                {isLoading && (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )}
+                                {isLoading ? "Saving..." : "Save"}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => setEditIndex(null)}
+                                disabled={isLoading} // Disable cancel while saving
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="relative aspect-video">
                         <Input
                           type="text"
-                          value={editedImage[index].url}
+                          value={editedImage[index]?.url || ""} // Add fallback
                           onChange={(e) =>
                             handleImageChange(index, "url", e.target.value)
                           }
                           className="w-full h-full object-cover"
+                          disabled={isLoading} // Disable input while loading
                         />
                       </div>
                       <div className="p-4 bg-background">
@@ -373,7 +413,7 @@ export function TradeDetailsDialog() {
                         </Label>
                         <Textarea
                           id={`description-${index}`}
-                          value={editedImage[index].description}
+                          value={editedImage[index]?.description || ""} // Add fallback
                           onChange={(e) =>
                             handleImageChange(
                               index,
@@ -382,10 +422,12 @@ export function TradeDetailsDialog() {
                             )
                           }
                           className="text-sm text-muted-foreground"
+                          disabled={isLoading} // Disable textarea while loading
                         />
                       </div>
                     </>
                   ) : (
+                    // View Mode JSX
                     <>
                       <div className="p-4 bg-muted/50 border-b flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -394,15 +436,14 @@ export function TradeDetailsDialog() {
                             {image.timeframe} Timeframe
                           </span>
                         </div>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditImage(index)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </DialogTrigger>
+                        {/* Corrected Edit Button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditImage(index)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
                       </div>
                       <div className="relative aspect-video">
                         <img
