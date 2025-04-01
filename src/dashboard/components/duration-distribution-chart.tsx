@@ -6,7 +6,7 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip, // Keep for now
   CartesianGrid,
 } from "recharts";
 import { useSelector } from "react-redux";
@@ -16,12 +16,26 @@ import { parseISO, differenceInMinutes } from "date-fns";
 import { RootState } from "@/app/store";
 import { selectTradeDetails } from "@/app/selectors";
 import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart"; // Import shadcn chart components
+import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/ui/card";
+
+// Define chart config
+const chartConfig = {
+  count: {
+    label: "Number of Trades",
+    color: "hsl(var(--chart-1))", // Use CSS variable
+  },
+} satisfies ChartConfig;
 
 // Define duration brackets (in minutes)
 const brackets = [
@@ -92,43 +106,51 @@ export function DurationDistributionChart() {
       </CardHeader>
       <CardContent className="pl-2">
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
+          // Wrap with ChartContainer
+          <ChartContainer config={chartConfig} className="h-[350px] w-full">
+            <BarChart accessibilityLayer data={chartData}>
+              <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="name"
-                stroke="#888888"
-                fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                angle={-45}
-                textAnchor="end"
-                height={70}
+                tickMargin={8}
+                // Remove angle/anchor/height for horizontal labels
+                // angle={-45}
+                // textAnchor="end"
+                // height={70}
+                // stroke="#888888" // Remove
+                // fontSize={12} // Remove
               />
               <YAxis
-                stroke="#888888"
-                fontSize={12}
                 tickLine={false}
                 axisLine={false}
+                tickMargin={8}
                 allowDecimals={false}
-                label={{
-                  value: "Number of Trades",
-                  angle: -90,
-                  position: "insideLeft",
-                }}
+                // stroke="#888888" // Remove
+                // fontSize={12} // Remove
+                // label prop might not be directly supported by shadcn styling, remove for now
+                // label={{
+                //   value: "Number of Trades",
+                //   angle: -90,
+                //   position: "insideLeft",
+                // }}
               />
-              <Tooltip
-                formatter={(value: number) => [value, "Trades"]}
-                labelFormatter={(label: string) => `Duration: ${label}`}
+              {/* Replace Tooltip */}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent indicator="dot" />}
               />
               <Bar
                 dataKey="count"
-                fill="currentColor"
-                radius={[4, 4, 0, 0]}
-                className="fill-primary"
+                fill="var(--color-count)" // Use CSS variable
+                radius={4}
+                // fill="currentColor" // Remove
+                // radius={[4, 4, 0, 0]} // Simplify
+                // className="fill-primary" // Remove
               />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         ) : (
           <div className="flex h-[350px] items-center justify-center text-muted-foreground">
             No trade data available or durations could not be calculated.

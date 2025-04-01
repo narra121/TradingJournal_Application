@@ -6,7 +6,7 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip, // Keep Tooltip for now, replace with ChartTooltip later
   CartesianGrid,
 } from "recharts";
 import { useSelector } from "react-redux";
@@ -16,12 +16,26 @@ import { format, parseISO } from "date-fns";
 import { RootState } from "@/app/store";
 import { selectTradeDetails } from "@/app/selectors"; // Use memoized selector
 import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart"; // Import shadcn chart components
+import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/ui/card"; // Assuming UI components are in @/ui
+
+// Define chart config
+const chartConfig = {
+  cumulativePnl: {
+    label: "Cumulative P&L",
+    color: "hsl(var(--chart-1))", // Use CSS variable
+  },
+} satisfies ChartConfig;
 
 export function CumulativePnlChart() {
   const trades = useSelector(selectTradeDetails);
@@ -55,41 +69,48 @@ export function CumulativePnlChart() {
       </CardHeader>
       <CardContent className="pl-2">
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
+          // Wrap with ChartContainer
+          <ChartContainer config={chartConfig} className="h-[350px] w-full">
+            <LineChart
+              accessibilityLayer // Add accessibilityLayer
+              data={chartData}
+              margin={{ top: 5, right: 10, left: 10, bottom: 0 }} // Adjust margins if needed
+            >
+              <CartesianGrid vertical={false} />{" "}
+              {/* Keep grid, adjust style if needed */}
               <XAxis
                 dataKey="name" // Or "date" if preferred
-                stroke="#888888"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
+                tickLine={false} // Use shadcn style
+                axisLine={false} // Use shadcn style
+                tickMargin={8} // Use shadcn style
+                // stroke="#888888" // Remove direct stroke
+                // fontSize={12} // Remove direct font size
               />
               <YAxis
-                stroke="#888888"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
+                tickLine={false} // Use shadcn style
+                axisLine={false} // Use shadcn style
+                tickMargin={8} // Use shadcn style
+                // stroke="#888888" // Remove direct stroke
+                // fontSize={12} // Remove direct font size
                 tickFormatter={(value) => `$${value}`}
-                domain={["auto", "auto"]} // Adjust domain if needed
+                // domain={["auto", "auto"]} // Keep domain or adjust as needed
               />
-              <Tooltip
-                formatter={(value: number) => [
-                  `$${value.toFixed(2)}`,
-                  "Cumulative P&L",
-                ]}
-                labelFormatter={(label: string) => label} // Show "Trade X" or date in tooltip
+              {/* Replace recharts Tooltip with ChartTooltip */}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent indicator="line" />}
               />
               <Line
-                type="monotone"
                 dataKey="cumulativePnl"
-                stroke="currentColor" // Use Shadcn's current color
+                type="monotone"
+                // stroke="var(--color-cumulativePnl)" // Revert to currentColor + className
+                stroke="currentColor" // Use theme color via className
                 strokeWidth={2}
                 dot={false}
-                className="text-primary" // Use primary color from theme
+                className="text-primary" // Apply primary color class
               />
             </LineChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         ) : (
           <div className="flex h-[350px] items-center justify-center text-muted-foreground">
             No trade data available.

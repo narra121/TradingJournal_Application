@@ -1,13 +1,34 @@
 "use client";
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/store";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig, // Import ChartConfig type
+} from "../../ui/chart"; // Adjust path as needed
 
 interface ChartData {
   name: string;
   total: number;
 }
+
+// Define chart config
+const chartConfig = {
+  total: {
+    label: "Total PnL",
+    color: "hsl(var(--chart-1))", // Use CSS variable from shadcn theme
+  },
+} satisfies ChartConfig; // Use satisfies for type checking
 
 const monthNames = [
   "Jan",
@@ -50,29 +71,42 @@ export function Overview() {
   });
 
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <BarChart data={monthlyData}>
+    // Wrap with ChartContainer and pass config
+    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+      <BarChart accessibilityLayer data={monthlyData}>
+        {" "}
+        {/* Add accessibilityLayer */}
+        <CartesianGrid vertical={false} /> {/* Add CartesianGrid */}
         <XAxis
           dataKey="name"
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
+          tickLine={false} // Use props from shadcn examples
+          tickMargin={10} // Use props from shadcn examples
+          axisLine={false} // Use props from shadcn examples
+          // stroke="#888888" // Remove direct stroke
+          // fontSize={12} // Font size handled by ChartContainer styles
         />
         <YAxis
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
+          // stroke="#888888" // Remove direct stroke
+          tickLine={false} // Use props from shadcn examples
+          axisLine={false} // Use props from shadcn examples
+          tickMargin={10} // Use props from shadcn examples
+          // fontSize={12} // Font size handled by ChartContainer styles
           tickFormatter={(value) => `$${value}`}
+        />
+        {/* Add Tooltip */}
+        <ChartTooltip
+          cursor={false} // Use props from shadcn examples
+          content={<ChartTooltipContent indicator="line" />} // Use shadcn tooltip content
         />
         <Bar
           dataKey="total"
-          fill="currentColor"
-          radius={[4, 4, 0, 0]}
-          className="fill-primary"
+          fill="var(--color-total)" // Use CSS variable from config
+          radius={4} // Simplified radius
+          // fill="currentColor" // Remove direct fill
+          // radius={[4, 4, 0, 0]} // Use simpler radius
+          // className="fill-primary" // Remove direct class
         />
       </BarChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }

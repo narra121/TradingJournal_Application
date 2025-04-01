@@ -5,13 +5,21 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Tooltip,
-  Legend,
+  Tooltip, // Keep for now
+  Legend, // Keep for now
 } from "recharts";
 import { useSelector } from "react-redux";
 import { useMemo } from "react";
 import { RootState } from "@/app/store";
 import { Trade } from "@/app/traceSlice"; // Import the full Trade type
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart"; // Import shadcn chart components
 import {
   Card,
   CardContent,
@@ -20,15 +28,7 @@ import {
   CardTitle,
 } from "@/ui/card";
 
-// Define colors for the pie chart segments
-const COLORS = [
-  "#0088FE",
-  "#00C49F",
-  "#FFBB28",
-  "#FF8042",
-  "#8884d8",
-  "#82ca9d",
-];
+// Colors are now handled by chartConfig
 
 // Helper function to calculate win rate
 const calculateWinRate = (trades: Trade[]): number => {
@@ -69,6 +69,23 @@ export function WinRateBySetupChart() {
       .filter((data) => data.tradeCount > 0); // Only include setups with trades
   }, [trades]);
 
+  // Dynamically generate chartConfig based on data
+  const chartConfig = useMemo(() => {
+    const config: ChartConfig = {};
+    if (chartData.length > 0) {
+      chartData.forEach((item, index) => {
+        // Use a base color and generate variations or use a predefined palette
+        const colorIndex = index % 6; // Example: cycle through 6 base colors
+        config[item.name] = {
+          label: item.name,
+          // Use shadcn theme colors if available, otherwise fallback
+          color: `hsl(var(--chart-${colorIndex + 1}))`,
+        };
+      });
+    }
+    return config;
+  }, [chartData]);
+
   return (
     <Card>
       <CardHeader>
@@ -79,35 +96,41 @@ export function WinRateBySetupChart() {
       </CardHeader>
       <CardContent>
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
+          // Wrap with ChartContainer
+          <ChartContainer
+            config={chartConfig}
+            className="mx-auto aspect-square h-[350px]"
+          >
             <PieChart>
+              {/* Replace Tooltip */}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />} // Pie charts often hide the label in tooltip
+              />
               <Pie
                 data={chartData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                // label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} // Optional: label on slices
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value" // Value is the win rate percentage
-                nameKey="name"
+                dataKey="value" // Win rate percentage
+                nameKey="name" // Setup type
+                innerRadius={60} // Make it a donut chart like shadcn examples
+                strokeWidth={5} // Add stroke like shadcn examples
               >
-                {chartData.map((entry, index) => (
+                {/* Use chartConfig for fills */}
+                {chartData.map((entry) => (
                   <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[index % COLORS.length]}
+                    key={entry.name}
+                    fill={`var(--color-${entry.name})`} // Use CSS variable from config
+                    className="stroke-background" // Use shadcn class for stroke
                   />
                 ))}
               </Pie>
-              <Tooltip
-                formatter={(value: number, name: string, props) => [
-                  `${value.toFixed(2)}% ( ${props.payload.tradeCount} trades )`, // Show win rate and trade count
-                  name, // Show setup type name
-                ]}
+              {/* Replace Legend */}
+              <ChartLegend
+                content={<ChartLegendContent nameKey="name" />}
+                verticalAlign="bottom"
+                align="center"
               />
-              <Legend />
             </PieChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         ) : (
           <div className="flex h-[350px] items-center justify-center text-muted-foreground">
             No trade data with setup types available.

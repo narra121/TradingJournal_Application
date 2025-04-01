@@ -62,11 +62,21 @@ const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
 
 export function RecentTrades() {
   const trades: TradeDetails[] = useSelector((state: RootState) => {
-    return state.TradeData.trades.map((trade) => trade.trade);
+    // Sort trades by openDate descending before returning
+    return state.TradeData.trades
+      .map((trade) => trade.trade)
+      .sort((a, b) => {
+        // Assuming openDate is a string like 'YYYY-MM-DD HH:MM:SS' or ISO format
+        // Parse dates for accurate comparison
+        const dateA = new Date(a.openDate).getTime();
+        const dateB = new Date(b.openDate).getTime();
+        return dateB - dateA; // Sort descending (newest first)
+      });
   });
   return (
     <ScrollArea className="h-[400px] pr-4">
       <div className="space-y-1">
+        {/* Map over the already sorted trades */}
         {trades.map((trade) => (
           <TradeItem key={trade.tradeId} trade={trade} />
         ))}
