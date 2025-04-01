@@ -87,8 +87,14 @@ export function TradeJournalDialog() {
   const dispatch: AppDispatch = useDispatch();
 
   // --- State for form data ---
+  // Add originalUrl to track existing images
   const [images, setImages] = useState<
-    { file: File; timeframe: string; description: string }[]
+    {
+      file: File;
+      timeframe: string;
+      description: string;
+      originalUrl?: string;
+    }[]
   >([]);
   const [psychology, setPsychology] = useState<Trade["psychology"]>({
     isGreedy: false,
@@ -188,17 +194,29 @@ export function TradeJournalDialog() {
           return null;
         }
       }
+      // Include the original URL when setting the state
       return {
         file,
         timeframe: image.timeframe,
         description: image.description,
+        originalUrl: image.url, // Add originalUrl here
       };
     });
 
+    // Filter type needs to include originalUrl and match the return type of the map
     const fetchedImages = (await Promise.all(imagePromises)).filter(
-      (img): img is { file: File; timeframe: string; description: string } =>
-        img !== null
+      (
+        img
+      ): img is {
+        // Type guard should match the successful return type of the map
+        file: File;
+        timeframe: string;
+        description: string;
+        originalUrl: string; // It's guaranteed to be a string here if not null
+      } => img !== null
     );
+    // fetchedImages now has type { file: File; timeframe: string; description: string; originalUrl: string }[]
+    // This is compatible with the state setter which expects { file: File; timeframe: string; description: string; originalUrl?: string }[]
     setImages(fetchedImages);
     setInitialImagesState(imageUrls); // Store initial metadata for dirty check
   }, []);
@@ -376,36 +394,7 @@ export function TradeJournalDialog() {
       setIsSaved(false);
     },
     []
-  );
-
-  // --- Image Upload Helper ---
-  const uploadImages = useCallback(
-    async (
-      imageObjects: { file: File; timeframe: string; description: string }[]
-    ): Promise<ImageType[]> => {
-      const uploadedImages: ImageType[] = [];
-      await Promise.all(
-        imageObjects.map(async (imageObject) => {
-          // Avoid re-uploading if URL already exists and matches initial state (more complex check)
-          // For now, re-upload all current images
-          const storageRef = ref(
-            storage,
-            `images/${Date.now()}_${imageObject.file.name}`
-          ); // Add timestamp to avoid overwrites
-          const snapshot = await uploadBytes(storageRef, imageObject.file);
-          const downloadURL = await getDownloadURL(snapshot.ref);
-          await storeImageInDB(downloadURL, imageObject.file); // Cache after upload
-          uploadedImages.push({
-            timeframe: imageObject.timeframe,
-            description: imageObject.description,
-            url: downloadURL,
-          });
-        })
-      );
-      return uploadedImages;
-    },
-    []
-  );
+  ); // End of handleImageDescriptionChange useCallback
 
   // --- Save Handler ---
   const handleSave = useCallback(async () => {
@@ -415,10 +404,46 @@ export function TradeJournalDialog() {
     setIsSaved(false);
 
     try {
-      const processedImages = await uploadImages(images);
+      // Process images: upload only new ones, keep existing URLs
+      const processedImages: ImageType[] = await Promise.all(
+        images.map(async (img) => {
+          // Check if the image has an originalUrl AND if it still exists in the initial state
+          // This prevents re-uploading if an initial image was removed and then re-added with the same file picker
+          const isExistingUnchanged =
+            img.originalUrl &&
+            initialImagesState.some(
+              (initial) => initial.url === img.originalUrl
+            );
+
+          if (isExistingUnchanged) {
+            // Existing image, use its original URL
+            // Return ImageType format
+            return {
+              url: img.originalUrl!, // Use non-null assertion as we checked it exists
+              timeframe: img.timeframe,
+              description: img.description,
+            };
+          } else {
+            // New image (or existing image that was replaced), upload it
+            const storageRef = ref(
+              storage,
+              `images/${Date.now()}_${img.file.name}`
+            );
+            const snapshot = await uploadBytes(storageRef, img.file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            await storeImageInDB(downloadURL, img.file); // Cache after upload
+            return {
+              url: downloadURL,
+              timeframe: img.timeframe,
+              description: img.description,
+            };
+          }
+        })
+      );
+
       const updatedTrade: Trade = {
         ...tradeData,
-        images: processedImages,
+        images: processedImages, // Use the conditionally processed images
         psychology,
         analysis,
         metrics,
@@ -440,7 +465,7 @@ export function TradeJournalDialog() {
     }
   }, [
     dispatch,
-    uploadImages,
+    // uploadImages removed
     images,
     psychology,
     analysis,
