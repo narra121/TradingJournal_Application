@@ -463,21 +463,15 @@ export function TradeJournalDialog() {
       <DialogContent className="max-w-[90vw] h-[90vh] flex flex-col p-0">
         {" "}
         {/* Remove gap and padding */}
-        <DialogClose asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-3 right-3 z-10"
-          >
-            {" "}
-            {/* Adjusted positioning */}
-            <X className="w-4 h-4" />
-          </Button>
-        </DialogClose>
-        <DialogHeader className="px-6 pt-4 pb-4 border-b sticky top-0 bg-background z-10">
+        <DialogHeader className="px-6 pt-4 pb-4 border-b sticky top-0 bg-background z-10 flex flex-row justify-between items-center">
           {" "}
-          {/* Make header sticky */}
+          {/* Make header sticky and flex */}
           <DialogTitle>Trade Journal</DialogTitle>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon">
+              <X className="w-4 h-4" />
+            </Button>
+          </DialogClose>
         </DialogHeader>
         {/* Main Content Area (Scrollable) */}
         {/* Added flex-1 back to this div */}

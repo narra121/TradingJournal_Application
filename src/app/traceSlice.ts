@@ -336,11 +336,12 @@ export const tradesSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(addTradeToFirestore.fulfilled, (state, action) => {
-        if (action.payload) {
-          state.trades.push(...action.payload); // Push the transformed Trade objects
-        }
-      })
+      // REMOVED: No longer update local state here; rely on Firestore listener
+      // .addCase(addTradeToFirestore.fulfilled, (state, action) => {
+      //   if (action.payload) {
+      //     state.trades.push(...action.payload); // Push the transformed Trade objects
+      //   }
+      // })
       .addCase(
         updateTradeInFirestore.fulfilled,
         (state: any, action: PayloadAction<Trade>) => {
