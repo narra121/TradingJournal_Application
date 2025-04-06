@@ -131,7 +131,7 @@ function Calender() {
                 Total P&L:{" "}
                 <span
                   className={cn(
-                    "font-semibold",
+                    "font-semibold inline-block min-w-[10ch] text-right", // Added min-width and text-right
                     monthlyStats.totalPnl > 0 && "text-green-600",
                     monthlyStats.totalPnl < 0 && "text-red-600",
                     monthlyStats.totalPnl === 0 &&
@@ -147,15 +147,37 @@ function Calender() {
                 </span>
               </span>
               <span>|</span>
-              <span>Total Trades: {monthlyStats.totalTrades}</span>
+              <span>
+                Total Trades:{" "}
+                <span className="font-semibold inline-block min-w-[4ch] text-right">
+                  {" "}
+                  {/* Added min-width */}
+                  {monthlyStats.totalTrades}
+                </span>
+              </span>
               <span className="text-green-600">
-                W: {monthlyStats.positiveTrades}
+                W:{" "}
+                <span className="font-semibold inline-block min-w-[3ch] text-right">
+                  {" "}
+                  {/* Added min-width */}
+                  {monthlyStats.positiveTrades}
+                </span>
               </span>
               <span className="text-red-600">
-                L: {monthlyStats.negativeTrades}
+                L:{" "}
+                <span className="font-semibold inline-block min-w-[3ch] text-right">
+                  {" "}
+                  {/* Added min-width */}
+                  {monthlyStats.negativeTrades}
+                </span>
               </span>
               <span className="text-yellow-600">
-                B/E: {monthlyStats.breakEvenTrades}
+                B/E:{" "}
+                <span className="font-semibold inline-block min-w-[3ch] text-right">
+                  {" "}
+                  {/* Added min-width */}
+                  {monthlyStats.breakEvenTrades}
+                </span>
               </span>
             </div>
             {/* Navigation Buttons */}
