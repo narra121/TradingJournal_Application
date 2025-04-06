@@ -10,6 +10,7 @@ import {
   isSameMonth,
   isToday,
   parseISO,
+  isWithinInterval, // Import isWithinInterval
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,14 +47,27 @@ const processTrades = (trades: Trade[]): TradeData => {
 
 function Calender() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const trades = useSelector((state: RootState) => state.TradeData.trades); // Corrected: Fetch trades from store using TradeData slice
-  const tradeData = processTrades(trades); // Use fetched trades
+  const allTrades = useSelector((state: RootState) => state.TradeData.trades); // Fetch all trades
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
+
+  // Filter trades for the current month
+  const monthlyTrades = allTrades.filter((trade) => {
+    try {
+      const closeDate = parseISO(trade.trade.closeDate);
+      return isWithinInterval(closeDate, { start: monthStart, end: monthEnd });
+    } catch (e) {
+      console.error("Error parsing date for trade:", trade, e);
+      return false;
+    }
+  });
+
+  // Process trades for daily view (only for the current month's trades)
+  const tradeData = processTrades(monthlyTrades);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  // Calculate weekly totals
+  // Calculate weekly totals (using the monthly filtered tradeData)
   const getWeekNumber = (date: Date) => {
     const firstDayOfMonth = startOfMonth(date);
     return Math.ceil((date.getDate() + firstDayOfMonth.getDay()) / 7);
@@ -80,15 +94,26 @@ function Calender() {
     return weeklyTotals;
   };
 
-  const weeklyTotals = calculateWeeklyTotals();
+  const weeklyTotals = calculateWeeklyTotals(); // This uses tradeData which is already filtered
 
-  // Calculate monthly total
-  const monthlyTotal = Object.values(tradeData).reduce(
-    (acc, day) => ({
-      profit: acc.profit + day.profit,
-      trades: acc.trades + day.trades,
-    }),
-    { profit: 0, trades: 0 }
+  // Calculate detailed monthly stats from monthlyTrades
+  const monthlyStats = monthlyTrades.reduce(
+    (acc, trade) => {
+      const pnl = trade.trade.pnl;
+      acc.totalPnl += pnl;
+      acc.totalTrades += 1;
+      if (pnl > 0) acc.positiveTrades += 1;
+      else if (pnl < 0) acc.negativeTrades += 1;
+      else acc.breakEvenTrades += 1;
+      return acc;
+    },
+    {
+      totalPnl: 0,
+      totalTrades: 0,
+      positiveTrades: 0,
+      negativeTrades: 0,
+      breakEvenTrades: 0,
+    }
   );
 
   return (
@@ -98,36 +123,69 @@ function Calender() {
           <CardTitle className="text-xl font-medium">
             {format(currentDate, "MMMM, yyyy")}
           </CardTitle>
-          <div className="flex items-center space-x-2">
-            <div className="text-sm text-muted-foreground">
-              Monthly P&L: $
-              {monthlyTotal.profit.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
+          {/* Container for Stats and Buttons */}
+          <div className="flex items-center space-x-4 ml-auto">
+            {/* Monthly Stats */}
+            <div className="flex items-center space-x-3 text-sm text-muted-foreground">
+              <span>
+                Total P&L:{" "}
+                <span
+                  className={cn(
+                    "font-semibold",
+                    monthlyStats.totalPnl > 0 && "text-green-600",
+                    monthlyStats.totalPnl < 0 && "text-red-600",
+                    monthlyStats.totalPnl === 0 &&
+                      monthlyStats.totalTrades > 0 &&
+                      "text-yellow-600"
+                  )}
+                >
+                  $
+                  {monthlyStats.totalPnl.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </span>
+              <span>|</span>
+              <span>Total Trades: {monthlyStats.totalTrades}</span>
+              <span className="text-green-600">
+                W: {monthlyStats.positiveTrades}
+              </span>
+              <span className="text-red-600">
+                L: {monthlyStats.negativeTrades}
+              </span>
+              <span className="text-yellow-600">
+                B/E: {monthlyStats.breakEvenTrades}
+              </span>
             </div>
-            <button
-              onClick={() =>
-                setCurrentDate(
-                  (date) => new Date(date.getFullYear(), date.getMonth() - 1)
-                )
-              }
-              className="p-2 hover:bg-accent rounded-md"
-              aria-label="Previous month" // Added aria-label
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() =>
-                setCurrentDate(
-                  (date) => new Date(date.getFullYear(), date.getMonth() + 1)
-                )
-              }
-              className="p-2 hover:bg-accent rounded-md"
-              aria-label="Next month" // Added aria-label
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+            {/* Navigation Buttons */}
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() =>
+                  setCurrentDate(
+                    (date) => new Date(date.getFullYear(), date.getMonth() - 1)
+                  )
+                }
+                className="p-2 hover:bg-accent rounded-md"
+                aria-label="Previous month" // Added aria-label
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() =>
+                  setCurrentDate(
+                    (date) => new Date(date.getFullYear(), date.getMonth() + 1)
+                  )
+                }
+                className="p-2 hover:bg-accent rounded-md"
+                aria-label="Next month" // Added aria-label
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>{" "}
+            {/* Added closing div for Navigation Buttons container */}
+          </div>{" "}
+          {/* Added closing div for the outer flex container */}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-8 gap-1 text-sm">

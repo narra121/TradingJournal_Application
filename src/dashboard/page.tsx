@@ -17,7 +17,7 @@ import { CumulativePnlChart } from "./components/cumulative-pnl-chart";
 import { PnlDistributionChart } from "./components/pnl-distribution-chart";
 import { WinRateBySetupChart } from "./components/winrate-by-setup-chart";
 import { DurationDistributionChart } from "./components/duration-distribution-chart";
-import TaskPage from "@/tasks/page";
+import TaskPage from "@/Trades/page";
 import { subscribeToTrades, TradeDetails } from "@/app/traceSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";

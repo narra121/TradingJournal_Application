@@ -7,6 +7,7 @@ import { Badge } from "../../ui/badge";
 import { Checkbox } from "../../ui/checkbox";
 
 import { DollarSign } from "lucide-react";
+import { cn } from "@/lib/utils"; // Import cn utility
 // Assuming you have similar data structures for statuses, etc.
 // You might need to create these if they don't exist.
 import { statuses } from "../data/data"; // Example, adjust as needed
@@ -267,7 +268,19 @@ export const columns: ColumnDef<TradeDetails>[] = [
             }).format(amount)
           : "-";
 
-      return <div className="font-semibold">{formattedAmount}</div>;
+      // Determine text color based on PnL value
+      const pnlColor =
+        typeof amount === "number" && !isNaN(amount)
+          ? amount > 0
+            ? "text-green-600"
+            : amount < 0
+            ? "text-red-600"
+            : "text-yellow-600" // Yellow for break-even
+          : ""; // Default color if not a valid number
+
+      return (
+        <div className={cn("font-semibold", pnlColor)}>{formattedAmount}</div>
+      );
     },
     enableSorting: true,
     // Adjust filterFn to check if the stringified PnL value is in the selected array
