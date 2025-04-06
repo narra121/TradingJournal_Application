@@ -24,6 +24,7 @@ import { useEffect, useState } from "react";
 import { AppDispatch, RootState } from "@/app/store";
 import { TradeImportDialog } from "@/components/trading/TradeJournal";
 import { DateRange } from "react-day-picker";
+import Calender from "@/app/Calender/calender";
 
 export default function DashboardPage() {
   const trades: TradeDetails[] = useSelector((state: RootState) => {
@@ -98,9 +99,7 @@ export default function DashboardPage() {
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
-              <TabsTrigger value="reports" disabled>
-                Reports
-              </TabsTrigger>
+              <TabsTrigger value="calender">Calender</TabsTrigger>
               <TabsTrigger value="notifications" disabled>
                 Notifications
               </TabsTrigger>
@@ -249,6 +248,9 @@ export default function DashboardPage() {
             </TabsContent>
             <TabsContent value="trades">
               <TaskPage />
+            </TabsContent>
+            <TabsContent value="calender">
+              <Calender />
             </TabsContent>
           </Tabs>
         </div>
