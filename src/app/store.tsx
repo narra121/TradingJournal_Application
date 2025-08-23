@@ -2,11 +2,13 @@ import { configureStore } from "@reduxjs/toolkit";
 import { tradesSlice } from "./traceSlice";
 import authSliceReducer from "./authSlice";
 import uiSlice from "./uiSlice";
+import awsAuthReducer from './awsAuthSlice'
 
 const store = configureStore({
   reducer: {
     TradeData: tradesSlice.reducer,
-    Auth: authSliceReducer,
+  Auth: authSliceReducer, // legacy firebase auth
+  AwsAuth: awsAuthReducer, // new aws cognito-backed auth state
     UI: uiSlice,
   },
   // Customize middleware to ignore non-serializable unsubscribe function

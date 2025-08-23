@@ -112,11 +112,11 @@ New: store tokens + decoded user claims (sub, email) & expiry.
 ### Tasks
 - [ ] Create `src/lib/api/client.ts` with base fetch wrapper (handles JSON, errors, Authorization header)  
 - [ ] Create `src/lib/api/auth.ts` with functions: signup, confirmSignup, login, refresh, forgotPassword, confirmForgotPassword, logoutAll  
-- [ ] Extend `authSlice` -> `awsAuthSlice` or migrate in place: store `{ idToken, accessToken, refreshToken, expiresAt, user: { sub, email } }`  
+- [x] Extend `authSlice` -> separate `awsAuthSlice` storing `{ idToken, accessToken, refreshToken, expiresAt, user }`  
 - [ ] Implement refresh flow thunk (auto refresh 60s before expiry)  
 - [ ] Replace `onAuthStateChanged` logic in `LoginPage.tsx` with token bootstrap from localStorage  
-- [ ] Add secure storage (localStorage keys: `tj.idToken`, `tj.refreshToken`, `tj.expiresAt`)  
-- [ ] Implement logout: clear tokens + Redux reset  
+- [x] Add secure storage (localStorage keys: `tj.idToken`, `tj.refreshToken`, `tj.expiresAt`)  
+- [ ] Implement logout: clear tokens + Redux reset (awsLogout in slice, not yet wired to UI)  
 - [ ] Feature flag: if `VITE_BACKEND_MODE=firebase` keep old path, else AWS path.
 
 Error Handling: Standardize errors to show toast with `message` or generic fallback.
