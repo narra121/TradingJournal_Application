@@ -1,11 +1,11 @@
 import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
-import { cn } from "@/lib/utils";
+import { cn } from "lib/utils";
 import { Badge } from "../../ui/badge";
 import { ScrollArea } from "../../ui/scroll-area";
 import { ArrowDownIcon, ArrowUpIcon, TrendingUpIcon } from "lucide-react";
 import { useSelector } from "react-redux";
-import { RootState } from "@/app/store";
-import { TradeDetails } from "@/app/traceSlice";
+import { selectRecentTrades } from "@/app/selectors";
+import { TradeDetails } from "@/app/types"; // Corrected import path
 
 interface TradeItemProps {
   trade: TradeDetails;
@@ -61,18 +61,7 @@ const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
 };
 
 export function RecentTrades() {
-  const trades: TradeDetails[] = useSelector((state: RootState) => {
-    // Sort trades by openDate descending before returning
-    return state.TradeData.trades
-      .map((trade) => trade.trade)
-      .sort((a, b) => {
-        // Assuming openDate is a string like 'YYYY-MM-DD HH:MM:SS' or ISO format
-        // Parse dates for accurate comparison
-        const dateA = new Date(a.openDate).getTime();
-        const dateB = new Date(b.openDate).getTime();
-        return dateB - dateA; // Sort descending (newest first)
-      });
-  });
+  const trades = useSelector(selectRecentTrades);
   return (
     <ScrollArea className="h-[400px] pr-4">
       <div className="space-y-1">

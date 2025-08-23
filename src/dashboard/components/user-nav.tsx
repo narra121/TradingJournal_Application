@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
 import { RootState } from "@/app/store";
-import { User } from "@/app/authSlice";
+import { User } from "@/app/types"; // Corrected import path
 
 export function UserNav() {
   const user: User = useSelector((state: RootState) => state.Auth.user!);
@@ -25,7 +25,7 @@ export function UserNav() {
             <AvatarFallback>
               {user.name
                 ?.split(" ")
-                .map((n, i, arr) =>
+                .map((n: string, i: number, arr: string[]) =>
                   i === 0 || i === arr.length - 1 ? n[0] : ""
                 )
                 .join("") ?? user.email![0]}

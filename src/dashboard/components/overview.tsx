@@ -9,7 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { useSelector } from "react-redux";
-import { RootState } from "@/app/store";
+import { selectMonthlyPnl } from "@/app/selectors";
 import {
   ChartContainer,
   ChartTooltip,
@@ -46,29 +46,7 @@ const monthNames = [
 ];
 
 export function Overview() {
-  const trades = useSelector((state: RootState) =>
-    state.TradeData.trades.map((trade) => trade.trade)
-  );
-
-  // Aggregate trade data by month
-  const monthlyData: ChartData[] = monthNames.map((monthName, monthIndex) => {
-    const monthlyTrades = trades.filter((trade) => {
-      const tradeDate = new Date(trade.openDate);
-      return tradeDate.getMonth() === monthIndex;
-    });
-
-    const totalPnl = monthlyTrades.reduce((sum, trade) => sum + trade.pnl, 0);
-    if (totalPnl == 0) {
-      return {
-        name: monthName,
-        total: 2,
-      };
-    }
-    return {
-      name: monthName,
-      total: totalPnl,
-    };
-  });
+  const monthlyData = useSelector(selectMonthlyPnl);
 
   return (
     // Wrap with ChartContainer and pass config

@@ -3,9 +3,9 @@ import { useSelector } from "react-redux";
 import { Column } from "@tanstack/react-table";
 import { Check, PlusCircle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "lib/utils";
 import { RootState } from "@/app/store";
-import { Trade, TradeDetails } from "@/app/traceSlice";
+import { Trade, TradeDetails } from "@/app/types";
 import { selectFacetedFilterOptions } from "@/app/selectors"; // Import the selector factory
 import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
@@ -37,7 +37,7 @@ export function DataTableFacetedFilter<TData extends Trade, TValue>({
 
   // Use the memoized selector, passing the column ID
   const options = useSelector((state: RootState) =>
-    selectOptions(state, column?.id as keyof TradeDetails | undefined)
+    selectOptions(state, column?.id as keyof TradeDetails)
   );
 
   // Remove the old useMemo block for deriving options

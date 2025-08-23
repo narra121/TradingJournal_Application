@@ -16,16 +16,11 @@ import {
   SelectValue,
 } from "@/ui/select";
 
-interface ChartData {
-  period: string;
-  profit: number;
-  trades: number;
-  winRate: number;
-}
+import { AggregatedTradeData, ChartDataPoint } from '@/types/trading';
 
 interface TradingChartProps {
-  weeklyData: ChartData[];
-  monthlyData: ChartData[];
+  weeklyData: ChartDataPoint[];
+  monthlyData: ChartDataPoint[];
 }
 
 type MetricType = "profit" | "trades" | "winRate";
@@ -101,7 +96,7 @@ export function TradingChart({ weeklyData, monthlyData }: TradingChartProps) {
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#6B7280", fontSize: 12 }}
-              tickFormatter={(value) => formatValue(value)}
+              tickFormatter={(value: number) => String(formatValue(value))}
             />
             <Tooltip
               formatter={(value: number) => formatValue(value)}
@@ -114,7 +109,7 @@ export function TradingChart({ weeklyData, monthlyData }: TradingChartProps) {
             />
             <Bar
               dataKey={metric}
-              fill={(data) => getBarColor(data[metric])}
+              fill={getBarColor(data[0]?.[metric])}
               radius={[4, 4, 0, 0]}
             />
           </BarChart>

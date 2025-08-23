@@ -1,11 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { TradeDetails } from "./traceSlice";
-
-interface UIState {
-  selectedItem: TradeDetails | null;
-  isDetailsOpen: boolean;
-  isEditOpen: boolean;
-}
+import { TradeDetails, UIState } from "./types";
 
 const initialState: UIState = {
   selectedItem: null,

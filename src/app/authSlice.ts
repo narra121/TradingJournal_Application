@@ -1,18 +1,5 @@
-// store/auth-slice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-
-export interface User {
-  email: string | null;
-  uid: string | null;
-  name: string | null;
-  photoURL: string | null;
-  // Add other user properties as needed (displayName, photoURL, etc.)
-}
-
-interface AuthState {
-  user: User | null;
-  isLoggedIn: boolean;
-}
+import { User, AuthState } from "./types";
 
 const initialState: AuthState = {
   user: null,

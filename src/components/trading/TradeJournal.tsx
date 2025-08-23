@@ -17,25 +17,18 @@ import {
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Loader2, Upload, X, Check } from "lucide-react"; // Import Check icon
-import { cn } from "@/lib/utils";
+import { cn } from "lib/utils";
 import { v4 as uuidv4 } from "uuid";
 import { DateTimePicker24h } from "@/ui/DateTimePicker";
 import { Checkbox } from "@/ui/checkbox";
 import { parse, isValid } from "date-fns";
 import { useDispatch } from "react-redux";
-import { addTradeToFirestore, TradeDetails } from "@/app/traceSlice";
+import { addTradeToFirestore } from "@/app/traceSlice";
 
-interface Trade {
-  tradeId: string;
-  openDate: string;
-  closeDate: string;
-  symbol: string;
-  side: string;
-  entry: number;
-  exit: number;
-  qty: number;
-  pnl: number;
-  status: string;
+import { Trade, TradeDetails } from "@/app/types";
+
+interface ImportedTrade extends Omit<TradeDetails, 'tradeId'> {
+  tradeId?: string;
   selected?: boolean;
 }
 const parseDateString = (dateString: string): Date => {
@@ -45,10 +38,10 @@ const parseDateString = (dateString: string): Date => {
 };
 export function TradeImportDialog() {
   const [isOpen, setIsOpen] = useState(false);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [trades, setTrades] = useState<ImportedTrade[]>([]);
   const [editingCell, setEditingCell] = useState<{
     id: string;
-    field: keyof Trade;
+    field: keyof ImportedTrade;
   } | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // For image processing
@@ -92,7 +85,7 @@ export function TradeImportDialog() {
       }
 
       const responseText = await response.text();
-      let importedTrades: Trade[] = JSON.parse(responseText);
+      let importedTrades: ImportedTrade[] = JSON.parse(responseText);
       importedTrades = importedTrades.map((trade) => ({
         ...trade,
         tradeId: uuidv4(),
@@ -137,7 +130,7 @@ export function TradeImportDialog() {
 
   const handleCellEdit = (
     id: string,
-    field: keyof Trade,
+    field: keyof ImportedTrade,
     value: string | number
   ) => {
     setTrades(
@@ -154,14 +147,35 @@ export function TradeImportDialog() {
     setIsSaving(true);
     setIsSaved(false); // Reset saved state before attempting save
     try {
-      const tradesToSave = trades.map((trade) => {
-        const { selected, ...rest } = trade; // Exclude 'selected' property
-        return rest;
+      const tradesToSave = trades.map((tradeDetails) => {
+        const { selected, ...rest } = tradeDetails; // Exclude 'selected' property
+        const trade: Trade = {
+          tradeId: tradeDetails.tradeId || uuidv4(), // Use existing tradeId or generate a new one
+          trade: { ...rest, tradeId: tradeDetails.tradeId || uuidv4() }, // The TradeDetails part, ensuring tradeId is present
+          images: [], // Default empty array
+          psychology: {
+            isGreedy: false,
+            isFomo: false,
+            isRevenge: false,
+            emotionalState: "",
+            notes: "",
+          },
+          analysis: {
+            riskRewardRatio: 0,
+            setupType: "",
+            mistakes: [],
+          },
+          metrics: {
+            riskPerTrade: 0,
+            stopLossDeviation: 0,
+            targetDeviation: 0,
+            marketConditions: "",
+            tradingSession: "",
+          },
+        };
+        return trade;
       });
-      // Assuming addTradeToFirestore returns a promise or can be awaited
-      await dispatch(
-        addTradeToFirestore(tradesToSave as TradeDetails[]) as any
-      );
+      await dispatch(addTradeToFirestore(tradesToSave) as any);
       setIsSaved(true); // Set saved state on success
       setIsDirty(false); // Mark as not dirty *after* successful save
     } catch (error) {
@@ -202,7 +216,7 @@ export function TradeImportDialog() {
     }
     const symbol = symbols[0];
 
-    const mergedTrade: Trade = {
+    const mergedTrade: ImportedTrade = {
       tradeId: uuidv4(),
       symbol: symbol,
       openDate: selectedTrades.reduce((minDate, trade) => {
@@ -385,7 +399,7 @@ export function TradeImportDialog() {
                           <Checkbox
                             checked={trade.selected || false}
                             onCheckedChange={() =>
-                              handleRowSelect(trade.tradeId)
+                              trade.tradeId && handleRowSelect(trade.tradeId)
                             }
                           />
                         </TableCell>
@@ -399,7 +413,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "openDate",
                                 });
                               }}
@@ -418,7 +432,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "closeDate",
                                 });
                               }}
@@ -435,7 +449,7 @@ export function TradeImportDialog() {
                               autoFocus
                               onBlur={(e) =>
                                 handleCellEdit(
-                                  trade.tradeId,
+                                  trade.tradeId || '',
                                   "symbol",
                                   e.target.value
                                 )
@@ -447,7 +461,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "symbol",
                                 });
                               }}
@@ -478,7 +492,7 @@ export function TradeImportDialog() {
                               autoFocus
                               onBlur={(e) =>
                                 handleCellEdit(
-                                  trade.tradeId,
+                                  trade.tradeId || '',
                                   "entry",
                                   parseFloat(e.target.value)
                                 )
@@ -490,7 +504,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "entry",
                                 });
                               }}
@@ -509,7 +523,7 @@ export function TradeImportDialog() {
                               autoFocus
                               onBlur={(e) =>
                                 handleCellEdit(
-                                  trade.tradeId,
+                                  trade.tradeId || '',
                                   "exit",
                                   parseFloat(e.target.value)
                                 )
@@ -521,7 +535,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "exit",
                                 });
                               }}
@@ -539,7 +553,7 @@ export function TradeImportDialog() {
                               autoFocus
                               onBlur={(e) =>
                                 handleCellEdit(
-                                  trade.tradeId,
+                                  trade.tradeId || '',
                                   "qty",
                                   parseInt(e.target.value)
                                 )
@@ -551,7 +565,7 @@ export function TradeImportDialog() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent immediate blur
                                 setEditingCell({
-                                  id: trade.tradeId,
+                                  id: trade.tradeId || '',
                                   field: "qty",
                                 });
                               }}

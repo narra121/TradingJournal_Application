@@ -19,11 +19,13 @@ import {
 } from "@/ui/select";
 import { Button } from "@/ui/button";
 import { CalendarView } from "./trading/CalendarView";
-import { RootState } from "@/app/store";
+import { AppDispatch, RootState } from "@/app/store";
 import { useDispatch, useSelector } from "react-redux";
 import { TradeJournalDialog } from "./TradeJournalDialog";
-import { deleteTradeFromFirestore, TradeDetails } from "@/app/traceSlice";
-import { TradeDetailsDialog } from "./TradeDetailsDialog";
+import { deleteTradeFromFirestore } from "@/app/traceSlice";
+import { TradeDetails } from "@/app/types";
+import { TradeDetailsDialog } from "./TradeDetailsDialogMain";
+import { setIsDetailsOpen, setSelectedItem, setIsEditOpen } from "@/app/uiSlice";
 
 const allColumns = [
   { key: "openDate", label: "Open Date" },
@@ -42,7 +44,6 @@ type ViewMode = "table" | "calendar";
 type TimeFrame = "daily" | "weekly" | "monthly";
 
 export function Trades() {
-  const dispatch = useDispatch();
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("daily");
   const [selectedColumns, setSelectedColumns] = useState<Set<ColumnKey>>(
@@ -55,14 +56,16 @@ export function Trades() {
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>(
     {}
   );
-  const [selectedItem, setSelectedItem] = useState<TradeDetails | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const selectedItem = useSelector((state: RootState) => state.UI.selectedItem);
+  const isDetailsOpen = useSelector((state: RootState) => state.UI.isDetailsOpen);
+  const isEditOpen = useSelector((state: RootState) => state.UI.isEditOpen);
+  const dispatch = useDispatch<AppDispatch>();
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const trades: TradeDetails[] = useSelector((state: RootState) =>
-    state.TradeData.trades.map((trade) => trade.trade)
+    state.TradeData.trades.map((trade) => ({ ...trade.trade, tradeId: trade.tradeId ?? '' }))
   );
 
   // Memoized function for formatting values
@@ -405,7 +408,7 @@ export function Trades() {
         </div>
       ) : (
         <CalendarView
-          data={processedData}
+          data={processedData as any}
           onSelectDate={(date) => {
             // Handle date selection
             console.log("Selected date:", date);
@@ -415,14 +418,14 @@ export function Trades() {
 
       <TradeJournalDialog
         isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        trade={selectedItem!}
+        onClose={() => dispatch(setIsEditOpen(false))}
+        trade={selectedItem as any}
       />
 
       <TradeDetailsDialog
         isOpen={isDetailsOpen}
-        onClose={() => setIsDetailsOpen(false)}
-        trade={selectedItem!}
+        onClose={() => dispatch(setIsDetailsOpen(false))}
+        trade={selectedItem as any}
       />
     </div>
   );

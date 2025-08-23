@@ -9,6 +9,13 @@ export interface TradingMetrics {
   averageHoldingTime: number;
 }
 
+export interface ChartDataPoint {
+  period: string;
+  profit: number;
+  trades: number;
+  winRate: number;
+}
+
 export interface AggregatedTradeData {
   period: string;
   trades: number;

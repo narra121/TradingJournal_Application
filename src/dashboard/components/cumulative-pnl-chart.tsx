@@ -3,10 +3,8 @@
 import {
   Line,
   LineChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip, // Keep Tooltip for now, replace with ChartTooltip later
   CartesianGrid,
 } from "recharts";
 import { useSelector } from "react-redux";

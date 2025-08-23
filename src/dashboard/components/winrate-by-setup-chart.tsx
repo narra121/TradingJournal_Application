@@ -3,15 +3,11 @@
 import {
   PieChart,
   Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip, // Keep for now
-  Legend, // Keep for now
+  Cell
 } from "recharts";
 import { useSelector } from "react-redux";
 import { useMemo } from "react";
 import { RootState } from "@/app/store";
-import { Trade } from "@/app/traceSlice"; // Import the full Trade type
 import {
   ChartConfig,
   ChartContainer,
@@ -27,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/ui/card";
+import { Trade } from "@/app/types";
 
 // Colors are now handled by chartConfig
 

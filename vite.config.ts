@@ -18,18 +18,15 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "lib": path.resolve(__dirname, "./lib"),
+        "ui": path.resolve(__dirname, "./src/ui"),
       },
     },
-    // You can explicitly set source maps if needed, but the default should work
     build: {
       sourcemap: true,
     },
     server: {
       port: 5173,
-      strictPort: true,
-      watch: {
-        usePolling: true, // Prevents Vite from stopping
-      },
     },
   };
 });

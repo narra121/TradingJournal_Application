@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Avatar, AvatarFallback } from "@/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
-import { Trade, TradeDetails } from "@/app/traceSlice";
+import { Trade, TradeDetails } from "@/app/types";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/store";
 
@@ -15,10 +15,10 @@ export function RecentTrades() {
   }, [trades]);
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm">
-      {/* <h3 className="text-lg font-semibold mb-4">Recent Trades</h3>
+      <h3 className="text-lg font-semibold mb-4">Recent Trades</h3>
       <div className="space-y-6">
         {trades.map((trade) => (
-          <div key={trade.symbol} className="flex items-center justify-between">
+          <div key={trade.tradeId} className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Avatar className="h-9 w-9">
                 <AvatarFallback
@@ -64,7 +64,7 @@ export function RecentTrades() {
             </div>
           </div>
         ))}
-      </div> */}
+      </div>
     </div>
   );
 }

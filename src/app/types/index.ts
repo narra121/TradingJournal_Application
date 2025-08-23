@@ -12,9 +12,11 @@ export interface AuthState {
 }
 
 export interface ImageType {
+  id: string;
   url: string;
   timeframe: string;
   description: string;
+  file?: File;
 }
 
 export interface TradeDetails {
@@ -66,3 +68,6 @@ export interface UIState {
   isDetailsOpen: boolean;
   isEditOpen: boolean;
 }
+
+// AWS API types
+export * from './trade-aws'

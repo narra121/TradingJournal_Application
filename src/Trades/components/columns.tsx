@@ -7,7 +7,7 @@ import { Badge } from "../../ui/badge";
 import { Checkbox } from "../../ui/checkbox";
 
 import { DollarSign } from "lucide-react";
-import { cn } from "@/lib/utils"; // Import cn utility
+import { cn } from "lib/utils"; // Import cn utility
 // Assuming you have similar data structures for statuses, etc.
 // You might need to create these if they don't exist.
 import { statuses } from "../data/data"; // Example, adjust as needed

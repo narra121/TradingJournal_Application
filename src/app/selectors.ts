@@ -1,7 +1,7 @@
 import { createSelector } from "@reduxjs/toolkit";
 import { format, parseISO, isValid, startOfDay } from "date-fns"; // Import date-fns functions
 import { RootState } from "./store";
-import { Trade, TradeDetails } from "./traceSlice";
+import { Trade, TradeDetails } from "./types";
 
 // Base selector for trades array
 const selectAllTrades = (state: RootState) => state.TradeData.trades;
@@ -11,6 +11,38 @@ export const selectTradeDetails = createSelector([selectAllTrades], (trades) =>
   trades
     .map((trade) => trade.trade)
     .filter((item): item is TradeDetails => item !== undefined)
+);
+
+export const selectRecentTrades = createSelector(
+  [selectTradeDetails],
+  (trades) =>
+    [...trades].sort((a, b) => {
+      const dateA = new Date(a.openDate).getTime();
+      const dateB = new Date(b.openDate).getTime();
+      return dateB - dateA;
+    })
+);
+
+export const selectMonthlyPnl = createSelector(
+  [selectTradeDetails],
+  (trades) => {
+    const monthNames = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    const monthlyData = monthNames.map((monthName, monthIndex) => {
+      const monthlyTrades = trades.filter((trade) => {
+        const tradeDate = new Date(trade.openDate);
+        return tradeDate.getMonth() === monthIndex;
+      });
+      const totalPnl = monthlyTrades.reduce((sum, trade) => sum + trade.pnl, 0);
+      return {
+        name: monthName,
+        total: totalPnl,
+      };
+    });
+    return monthlyData;
+  }
 );
 
 // Memoized selector for UI state (Corrected structure)
@@ -27,7 +59,7 @@ export const selectFacetedFilterOptions = () =>
   createSelector(
     [
       selectAllTrades, // Input selector 1: All trades
-      (_state: RootState, columnId: keyof TradeDetails | undefined) => columnId, // Input selector 2: Column ID passed as argument
+      (_state: RootState, columnId: keyof TradeDetails) => columnId, // Input selector 2: Column ID passed as argument
     ],
     (trades, columnId) => {
       if (!columnId || !trades) {
