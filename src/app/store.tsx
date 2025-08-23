@@ -1,12 +1,12 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { tradesSlice } from "./traceSlice";
+// Removed firebase traceSlice import
 import authSliceReducer from "./authSlice";
 import uiSlice from "./uiSlice";
 import awsAuthReducer from './awsAuthSlice'
 
 const store = configureStore({
   reducer: {
-    TradeData: tradesSlice.reducer,
+  // TradeData: tradesSlice.reducer, // removed with firebase
   Auth: authSliceReducer, // legacy firebase auth
   AwsAuth: awsAuthReducer, // new aws cognito-backed auth state
     UI: uiSlice,

@@ -113,6 +113,7 @@ New: store tokens + decoded user claims (sub, email) & expiry.
 - [ ] Create `src/lib/api/client.ts` with base fetch wrapper (handles JSON, errors, Authorization header)  
 - [ ] Create `src/lib/api/auth.ts` with functions: signup, confirmSignup, login, refresh, forgotPassword, confirmForgotPassword, logoutAll  
 - [x] Extend `authSlice` -> separate `awsAuthSlice` storing `{ idToken, accessToken, refreshToken, expiresAt, user }`  
+- [x] Implement basic login/refresh helpers (pending auto-refresh scheduling)  
 - [ ] Implement refresh flow thunk (auto refresh 60s before expiry)  
 - [ ] Replace `onAuthStateChanged` logic in `LoginPage.tsx` with token bootstrap from localStorage  
 - [x] Add secure storage (localStorage keys: `tj.idToken`, `tj.refreshToken`, `tj.expiresAt`)  
@@ -193,8 +194,8 @@ Components impacted: `TradeJournalDialog`, `TradesPage`, `AnalyticsTable`, `Trad
 
 ---
 ## 9. Cleanup & Decommission Firebase
-- [ ] Remove firebase imports & code paths once AWS flag stable  
-- [ ] Delete `firebase.ts`, `auth.ts` (Firebase), Firestore thunks  
+- [x] Remove firebase imports & code paths (LoginPage & LoginForm updated)  
+- [x] Delete `firebase.ts`, `auth.ts` (Firebase), Firestore thunks (traceSlice removed)  
 - [ ] Prune `firebase` dependency from `package.json`  
 - [ ] Remove Firebase env vars from `.env` & docs  
 - [ ] Update `GEMINI.md` to reflect AWS stack  
