@@ -195,12 +195,32 @@ export function TradeImportDialog() {
           const res = await extractWithRetry(base64)
           if(res) {
             const items = res.data?.items || []
+            const currentYear = new Date().getFullYear()
+            const normalizeYear = (raw:string): string => {
+              if(!raw) return ''
+              const s = raw.trim()
+              if(/^\d{4}-/.test(s)) {
+                return s.replace(/^\d{4}/, String(currentYear))
+              }
+              if(/^\d{1,2}[-/]\d{1,2}/.test(s)) {
+                const std = s.replace(/\//g,'-')
+                return `${currentYear}-${std}`
+              }
+              // Attempt parse
+              const d = new Date(s)
+              if(!isNaN(d.getTime())) {
+                d.setFullYear(currentYear)
+                const pad = (n:number)=> String(n).padStart(2,'0')
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+              }
+              return s
+            }
             const importedTrades: ImportedTrade[] = items.map((t:any) => attachIdempotency({
               tradeId: uuidv4(),
               symbol: t.symbol || '',
               side: t.side || 'BUY',
-              openDate: t.openDate || '',
-              closeDate: t.closeDate || '',
+              openDate: normalizeYear(t.openDate || ''),
+              closeDate: normalizeYear(t.closeDate || ''),
               entry: round2(t.entryPrice ?? t.entry ?? 0),
               exit: round2(t.exitPrice ?? t.exit ?? 0),
               qty: t.quantity || t.qty || 0,
