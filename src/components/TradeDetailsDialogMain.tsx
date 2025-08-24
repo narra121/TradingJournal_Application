@@ -1,13 +1,5 @@
-import { RootState } from "@/app/store";
-import { Trade, TradeDetails } from "@/app/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger, // Import DialogTrigger
-  DialogClose,
-} from "@/ui/dialog";
+import { ApiTrade } from "@/app/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { ScrollArea } from "@/ui/scroll-area";
 import {
   Clock,
@@ -19,8 +11,8 @@ import {
   LineChart,
   Edit,
 } from "lucide-react";
-import { useDispatch, useSelector } from "react-redux";
-import { useState, useCallback, useEffect } from "react";
+// removed redux selectors in refactor
+import { useState } from "react";
 import { Input } from "@/ui/input";
 import { Label } from "@/ui/label";
 import { Textarea } from "@/ui/textarea"; // Import Textarea
@@ -32,27 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
-import { setIsDetailsOpen, setIsEditOpen } from "@/app/uiSlice";
+// ui slice no longer needed here
 
-interface TradeDetailsDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  trade: TradeDetails | null; // Add trade prop as it's passed from Trades.tsx
-}
+interface TradeDetailsDialogProps { isOpen: boolean; onClose: () => void; trade: ApiTrade | null }
 
-export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: TradeDetailsDialogProps) {
-  // selectedtrade is now passed as a prop
-  // const selectedtrade: TradeDetails | null = useSelector(
-  //   (state: RootState) => state.UI.selectedItem
-  // );
-
-  // Handle case where selectedtrade is null
-  const tradeData: Trade | undefined = useSelector((state: RootState) => {
-    if (!selectedtrade) return undefined;
-    return state.TradeData.trades.find(
-      (t) => t.trade.tradeId === selectedtrade.tradeId!
-    );
-  });
+export function TradeDetailsDialog({ isOpen, onClose, trade }: TradeDetailsDialogProps) {
+  const tradeData = trade
 
   // State for managing edit mode, image data, loading, and save status
   const [editIndex, setEditIndex] = useState<number | null>(null);
@@ -72,8 +49,8 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
       tradeData?.images?.map((image) => ({
         id: image.id,
         url: image.url,
-        description: image.description,
-        timeframe: image.timeframe,
+        description: image.description || '',
+        timeframe: image.timeframe || ''
       })) || []
     );
   };
@@ -139,7 +116,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                 <LineChart className="w-6 h-6 text-primary" />
-                {tradeData?.trade?.symbol} Trade Details
+                {tradeData?.symbol} Trade Details
               </DialogTitle>
             </DialogHeader>
 
@@ -155,19 +132,15 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">Side</p>
                       <p
-                        className={`text-xl font-bold ${
-                          tradeData?.trade?.side === "buy"
-                            ? "text-green-500"
-                            : "text-red-500"
-                        }`}
+                        className={`text-xl font-bold ${tradeData?.side === 'BUY' ? 'text-green-500':'text-red-500'}`}
                       >
-                        {tradeData?.trade?.side?.toUpperCase()}
+                        {tradeData?.side}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">Quantity</p>
                       <p className="text-xl font-bold">
-                        {tradeData?.trade?.qty}
+                        {tradeData?.quantity}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -175,7 +148,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Entry Price
                       </p>
                       <p className="text-xl font-bold">
-                        ${tradeData?.trade?.entry}
+                        ${tradeData?.entryPrice}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -183,7 +156,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Exit Price
                       </p>
                       <p className="text-xl font-bold">
-                        ${tradeData?.trade?.entry}
+                        ${tradeData?.exitPrice}
                       </p>
                     </div>
                     <div className="col-span-2 bg-muted/50 rounded-lg p-4">
@@ -192,12 +165,12 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                       </p>
                       <p
                         className={`text-2xl font-bold ${
-                          tradeData?.trade?.pnl ?? 0 >= 0
+                          (tradeData?.pnl ?? 0) >= 0
                             ? "text-green-500"
                             : "text-red-500"
                         }`}
                       >
-                        ${tradeData?.trade?.pnl?.toFixed(2)}
+                        ${tradeData?.pnl?.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -211,17 +184,17 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                   </h3>
                   <div className="space-y-4">
                     <div className="flex gap-2 flex-wrap">
-                      {tradeData?.psychology?.isGreedy && (
+                      {tradeData?.psychology?.greed && (
                         <span className="bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           Greedy Trade
                         </span>
                       )}
-                      {tradeData?.psychology?.isFomo && (
+                      {tradeData?.psychology?.fomo && (
                         <span className="bg-orange-100 text-orange-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           FOMO Trade
                         </span>
                       )}
-                      {tradeData?.psychology?.isRevenge && (
+                      {tradeData?.psychology?.revenge && (
                         <span className="bg-red-100 text-red-800 px-3 py-1.5 rounded-full text-sm font-medium">
                           Revenge Trade
                         </span>
@@ -232,13 +205,13 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Emotional State
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.psychology?.emotionalState}
+                        {tradeData?.emotionalState}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-sm text-muted-foreground">Notes</p>
                       <p className="text-sm mt-1">
-                        {tradeData?.psychology?.notes}
+                        {tradeData?.postTradeNotes}
                       </p>
                     </div>
                   </div>
@@ -257,7 +230,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                           Risk/Reward Ratio
                         </p>
                         <p className="text-lg font-semibold">
-                          {tradeData?.analysis?.riskRewardRatio}:1
+                          {tradeData?.riskRewardRatio}:1
                         </p>
                       </div>
                       <div className="bg-muted/50 rounded-lg p-4">
@@ -265,7 +238,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                           Setup Type
                         </p>
                         <p className="text-lg font-semibold">
-                          {tradeData?.analysis?.setupType}
+                          {tradeData?.setupType}
                         </p>
                       </div>
                     </div>
@@ -274,16 +247,14 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Mistakes
                       </p>
                       <div className="flex gap-2 flex-wrap">
-                        {tradeData?.analysis?.mistakes?.map(
-                          (mistake, index) => (
+                        {tradeData?.mistakes?.map((mistake, index) => (
                             <span
                               key={index}
                               className="bg-red-100 text-red-800 px-3 py-1.5 rounded-full text-sm font-medium"
                             >
                               {mistake}
                             </span>
-                          )
-                        )}
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -301,7 +272,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Risk per Trade
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.metrics?.riskPerTrade}%
+                        {tradeData?.riskAmount}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -309,7 +280,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Stop Loss Deviation
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.metrics?.stopLossDeviation}
+                        {tradeData?.stopLoss}
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -317,7 +288,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Target Deviation
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.metrics?.targetDeviation}
+                        {tradeData?.takeProfit}
                       </p>
                     </div>
                     <div className="col-span-2 bg-muted/50 rounded-lg p-4">
@@ -325,7 +296,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Market Conditions
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.metrics?.marketConditions}
+                        {tradeData?.marketCondition}
                       </p>
                     </div>
                     <div className="col-span-2 bg-muted/50 rounded-lg p-4">
@@ -333,7 +304,7 @@ export function TradeDetailsDialog({ isOpen, onClose, trade: selectedtrade }: Tr
                         Trading Session
                       </p>
                       <p className="text-lg font-semibold">
-                        {tradeData?.metrics?.tradingSession}
+                        {tradeData?.tradingSession}
                       </p>
                     </div>
                   </div>

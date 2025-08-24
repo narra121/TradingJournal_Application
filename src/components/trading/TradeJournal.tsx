@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,26 +16,73 @@ import {
 } from "../../ui/table";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
-import { Loader2, Upload, X, Check } from "lucide-react"; // Import Check icon
+import { Loader2, Upload, Check } from "lucide-react"; // Import Check icon
 import { cn } from "lib/utils";
 import { v4 as uuidv4 } from "uuid";
-import { DateTimePicker24h } from "@/ui/DateTimePicker";
 import { Checkbox } from "@/ui/checkbox";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/ui/select";
 import { parse, isValid } from "date-fns";
-import { useDispatch } from "react-redux";
-import { addTradeToFirestore } from "@/app/traceSlice";
+import { useDispatch, useSelector } from 'react-redux'
+import { extractTrades, createTradesBulk, listTrades } from '@/app/awsTradesSlice'
+import { RootState, AppDispatch } from '@/app/store'
+import { toast } from 'sonner'
 
-import { Trade, TradeDetails } from "@/app/types";
-
-interface ImportedTrade extends Omit<TradeDetails, 'tradeId'> {
-  tradeId?: string;
-  selected?: boolean;
+// Removed legacy TradeDetails dependency; using lightweight ImportedTrade placeholder until bulk AWS import implemented.
+interface ImportedTrade {
+  tradeId?: string
+  symbol: string
+  side: string
+  openDate: string
+  closeDate: string
+  entry: number
+  exit: number
+  qty: number
+  pnl: number
+  status: string
+  selected?: boolean
+  idempotencyKey?: string
 }
 const parseDateString = (dateString: string): Date => {
   let format: string = "yyyy-MM-dd HH:mm:ss";
   const date = parse(dateString, format, new Date());
   return isValid(date) ? date : new Date();
 };
+// Round to two decimals (standard rounding)
+const round2 = (v: any): number => {
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0
+}
+
+// Draft persistence key
+const DRAFT_KEY = 'tj.importDraft'
+
+// Deterministic hash (FNV-1a 32-bit) -> hex string for idempotency key
+const fnv1a = (str: string) => {
+  let h = 0x811c9dc5
+  for (let i=0;i<str.length;i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+    h >>>= 0
+  }
+  return ('00000000'+h.toString(16)).slice(-8)
+}
+
+// Extended deterministic key now includes entry & exit for higher uniqueness.
+// NOTE: Decimals are normalized to two places to avoid floating drift.
+const buildIdempotencyKey = (t: Pick<ImportedTrade,'symbol'|'openDate'|'qty'|'pnl'|'closeDate'|'entry'|'exit'>) => {
+  const parts = [
+    (t.symbol||'').trim().toUpperCase(),
+    (t.openDate||'').trim(),
+    String(t.qty ?? ''),
+    Number.isFinite(t.entry) ? round2(t.entry).toFixed(2) : '',
+    Number.isFinite(t.exit) ? round2(t.exit).toFixed(2) : '',
+    Number.isFinite(t.pnl) ? round2(t.pnl).toFixed(2) : '',
+    (t.closeDate||'').trim()
+  ]
+  return 't_'+fnv1a(parts.join('::'))
+}
+
+const attachIdempotency = (t: ImportedTrade): ImportedTrade => ({ ...t, idempotencyKey: buildIdempotencyKey(t) })
 export function TradeImportDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [trades, setTrades] = useState<ImportedTrade[]>([]);
@@ -49,55 +96,103 @@ export function TradeImportDialog() {
   const [isSaved, setIsSaved] = useState(false); // Track successful save
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
-  const dispatch = useDispatch();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dispatch = useDispatch<AppDispatch>()
+  const extractState = useSelector((s:RootState)=> s.AwsTrades.extract)
+  const extractionCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false })
+  const [isCancelling, setIsCancelling] = useState(false)
+  // Dialog removed per request; using toasts only for extraction progress/result
+
+  // Clear previous state every time the dialog is (re)opened
+  const wasOpenRef = useRef(false)
+  useEffect(()=>{
+    if(isOpen) {
+      // If reopening (or first open) wipe previous import session
+      setTrades([])
+      setUploadedImage(null)
+      setIsDirty(false)
+      setIsSaved(false)
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+    }
+    wasOpenRef.current = isOpen
+  }, [isOpen])
+
+  const extractWithRetry = async (base64: string, attempts = 3, delayMs = 1200) => {
+    extractionCancelRef.current.cancelled = false
+    for (let i=1; i<=attempts; i++) {
+      if (extractionCancelRef.current.cancelled) throw new Error('Extraction cancelled')
+      const start = Date.now()
+      const action = await dispatch(extractTrades(base64))
+      if (extractTrades.fulfilled.match(action)) {
+        toast.success(`Extracted trades (attempt ${i}) in ${Date.now()-start}ms`, { id: 'extract-trades-progress' })
+        return action.payload
+      } else {
+        if (extractionCancelRef.current.cancelled) throw new Error('Extraction cancelled')
+        const remaining = attempts - i
+        toast.error(`Extraction failed (attempt ${i})${remaining?`, retrying in ${delayMs}ms...`:''}`, { id: 'extract-trades-progress' })
+        if (!remaining) throw new Error(String(action.payload || 'Extraction failed'))
+        await new Promise(r=>setTimeout(r, delayMs))
+        delayMs *= 2 // exponential backoff
+      }
+    }
+  }
 
   const handleImageUpload = async (file: File) => {
     setIsLoading(true);
+    setIsCancelling(false)
     setIsDirty(false); // Reset dirty state on new upload
     setIsSaved(false); // Reset saved state on new upload
+  toast.loading('Extracting trades from image...', { id: 'extract-trades-progress' })
+  // If a previous extraction is in-flight, cooperatively cancel it
+  extractionCancelRef.current.cancelled = true;
+  // Small delay to allow any in-flight promise loops to notice cancellation flag
+  await new Promise(r=>setTimeout(r,10));
+  extractionCancelRef.current.cancelled = false;
     try {
       // Simulate API call to process image
       const reader = new FileReader();
-      reader.onload = () => {
-        setUploadedImage(reader.result as string);
+      reader.onload = async () => {
+        const base64 = reader.result as string
+        setUploadedImage(base64);
+        try {
+          const res = await extractWithRetry(base64)
+          if(res) {
+            const items = res.data?.items || []
+            const importedTrades: ImportedTrade[] = items.map((t:any) => attachIdempotency({
+              tradeId: uuidv4(),
+              symbol: t.symbol || '',
+              side: t.side || 'BUY',
+              openDate: t.openDate || '',
+              closeDate: t.closeDate || '',
+              entry: round2(t.entryPrice ?? t.entry ?? 0),
+              exit: round2(t.exitPrice ?? t.exit ?? 0),
+              qty: t.quantity || t.qty || 0,
+              pnl: round2(t.pnl ?? 0),
+              status: t.status || ( (t.pnl??0) > 0 ? 'TP':'SL'),
+              selected: false,
+              idempotencyKey: undefined
+            }))
+            setTrades(importedTrades)
+            if(importedTrades.length>0) setIsDirty(true)
+            if(importedTrades.length===0) toast.info('No trades detected in image')
+    toast.success(`${importedTrades.length} trade(s) extracted`, { id: 'extract-trades-progress' })
+          } else {
+            toast.error('Extraction produced no result')
+          }
+        } catch (e:any) { 
+          if(e.message==='Extraction cancelled'){ 
+    toast.info('Extraction cancelled', { id: 'extract-trades-progress' }) 
+          } else { 
+            console.error(e); 
+    toast.error(e.message || 'Extraction failed', { id: 'extract-trades-progress' }); 
+          } 
+        }
       };
       reader.readAsDataURL(file);
-
-      const formData = new FormData();
-      formData.append("image", file);
-
-      const response = await fetch(
-        "https://importtrades.azurewebsites.net/api/importtrades",
-        {
-          method: "POST",
-          headers: {
-            "Access-Control-Allow-Credentials": "true", // Allow cookies
-            "Access-Control-Allow-Origin": "*", // Allow all origins (or specify a specific one)
-            "Access-Control-Allow-Methods": "POST, OPTIONS", // Allowed HTTP methods
-            "Access-Control-Allow-Headers": "Content-Type, Authorization", // Allowed headers
-          },
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const responseText = await response.text();
-      let importedTrades: ImportedTrade[] = JSON.parse(responseText);
-      importedTrades = importedTrades.map((trade) => ({
-        ...trade,
-        tradeId: uuidv4(),
-        selected: false, //Initialize selected to false
-      }));
-      setTrades(importedTrades);
-      if (importedTrades.length > 0) {
-        setIsDirty(true); // Set dirty to true after successful import with trades
-      }
     } catch (error) {
       console.error("Error processing image:", error);
       setIsDirty(false); // Ensure dirty is false if import fails
+  toast.error('Error processing image', { id: 'extract-trades-progress' })
     } finally {
       setIsLoading(false);
     }
@@ -128,65 +223,172 @@ export function TradeImportDialog() {
     [handleImageUpload]
   );
 
+  // Also support global paste (user might not have the drop zone focused)
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      if(!isOpen || isLoading) return;
+      const items = e.clipboardData?.items;
+      if(!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) handleImageUpload(file);
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', onWindowPaste);
+    return () => window.removeEventListener('paste', onWindowPaste);
+  }, [isOpen, isLoading, handleImageUpload]);
+
   const handleCellEdit = (
     id: string,
     field: keyof ImportedTrade,
     value: string | number
   ) => {
-    setTrades(
-      trades.map((trade) =>
-        trade.tradeId === id ? { ...trade, [field]: value } : trade
-      )
-    );
-    setEditingCell(null);
-    setIsDirty(true);
-    setIsSaved(false); // Reset saved state on edit
-  };
+    // Apply rounding for numeric decimal fields
+    const numericFields: Array<keyof ImportedTrade> = ['entry','exit','pnl']
+    const nextVal = numericFields.includes(field) ? round2(value) : value
+    setTrades(trades.map(trade => {
+      if (trade.tradeId !== id) return trade
+      const updated: ImportedTrade = { ...trade, [field]: nextVal } as any
+      // Recompute idempotency key if any of the contributing fields changed
+      if (['symbol','openDate','qty','pnl','closeDate','entry','exit'].includes(field)) {
+        return attachIdempotency(updated)
+      }
+      return updated
+    }))
+    setEditingCell(null)
+    setIsDirty(true)
+    setIsSaved(false) // Reset saved state on edit
+  }
+
+  const validateTrades = (list: ImportedTrade[]) => {
+    const errors: string[] = []
+    const valid: ImportedTrade[] = []
+    list.forEach((t, idx) => {
+      const prefix = `Row ${idx+1}`
+      const rowErrors: string[] = []
+      if(!t.symbol) rowErrors.push('missing symbol')
+      if(!['BUY','SELL'].includes(t.side)) rowErrors.push('invalid side')
+      if(!t.openDate) rowErrors.push('missing openDate')
+      if(!t.closeDate) rowErrors.push('missing closeDate')
+      if(t.openDate && t.closeDate && new Date(t.openDate) > new Date(t.closeDate)) rowErrors.push('openDate after closeDate')
+      if(!t.entry || isNaN(t.entry)) rowErrors.push('invalid entry')
+      if(!t.exit || isNaN(t.exit)) rowErrors.push('invalid exit')
+      if(!t.qty || isNaN(t.qty) || t.qty<=0) rowErrors.push('invalid qty')
+      if(rowErrors.length) errors.push(`${prefix}: ${rowErrors.join(', ')}`)
+      else valid.push(t)
+    })
+    return { valid, errors }
+  }
+
+  // throttleAll removed (bulk save now single request)
 
   const handleSave = async () => {
-    setIsSaving(true);
-    setIsSaved(false); // Reset saved state before attempting save
-    try {
-      const tradesToSave = trades.map((tradeDetails) => {
-        const { selected, ...rest } = tradeDetails; // Exclude 'selected' property
-        const trade: Trade = {
-          tradeId: tradeDetails.tradeId || uuidv4(), // Use existing tradeId or generate a new one
-          trade: { ...rest, tradeId: tradeDetails.tradeId || uuidv4() }, // The TradeDetails part, ensuring tradeId is present
-          images: [], // Default empty array
-          psychology: {
-            isGreedy: false,
-            isFomo: false,
-            isRevenge: false,
-            emotionalState: "",
-            notes: "",
-          },
-          analysis: {
-            riskRewardRatio: 0,
-            setupType: "",
-            mistakes: [],
-          },
-          metrics: {
-            riskPerTrade: 0,
-            stopLossDeviation: 0,
-            targetDeviation: 0,
-            marketConditions: "",
-            tradingSession: "",
-          },
-        };
-        return trade;
-      });
-      await dispatch(addTradeToFirestore(tradesToSave) as any);
-      setIsSaved(true); // Set saved state on success
-      setIsDirty(false); // Mark as not dirty *after* successful save
-    } catch (error) {
-      console.error("Error saving trades:", error);
-      // Optionally: show an error message to the user
-      setIsSaved(false); // Ensure saved state is false on error
-      // Keep isDirty true on save error so user can retry
-    } finally {
-      setIsSaving(false);
+    if(trades.length===0) return
+    const subset = trades.some(t=>t.selected) ? trades.filter(t=>t.selected) : trades
+    const { valid, errors } = validateTrades(subset)
+    if(errors.length) {
+      toast.error(`Validation errors:\n${errors.slice(0,5).join('\n')}${errors.length>5?`\n...(${errors.length-5} more)`:''}`)
+      if(valid.length===0) return
+      toast.info(`Proceeding with ${valid.length} valid trades`)    
     }
-  };
+    setIsSaving(true)
+    toast.loading(`Saving ${valid.length} trade(s)...`, { id:'save-trades' })
+    // Build bulk payload
+    const bulkItems = valid.map(t => ({
+      // Core required
+      symbol: t.symbol,
+      side: t.side as any,
+      quantity: t.qty,
+      openDate: t.openDate,
+      idempotencyKey: t.idempotencyKey || uuidv4(),
+      // Optional / nullable fields (send explicitly per request)
+      closeDate: t.closeDate || null,
+      entryPrice: t.entry ?? null,
+      exitPrice: t.exit ?? null,
+  // Explicit PnL fields (backend previously derived; now passing actual extracted value)
+  pnl: Number.isFinite(t.pnl) ? round2(t.pnl) : null,
+  netPnl: Number.isFinite(t.pnl) ? round2(t.pnl) : null,
+      stopLoss: null,
+      takeProfit: null,
+      commission: null,
+      fees: null,
+      riskAmount: null,
+      setupType: null,
+      timeframe: null,
+      marketCondition: null,
+      tradingSession: null,
+      tradeGrade: null,
+      confidence: null,
+      setupQuality: null,
+      execution: null,
+      emotionalState: null,
+      psychology: {
+        greed: false,
+        fear: false,
+        fomo: false,
+        revenge: false,
+        overconfidence: false,
+        patience: false,
+      },
+      preTradeNotes: null,
+      postTradeNotes: null,
+      mistakes: [],
+      lessons: [],
+      newsEvents: [],
+      economicEvents: [],
+      status: 'CLOSED',
+      tags: [],
+      images: [],
+    }))
+  let created = 0, skipped: any[] = [], apiErrors: any[] = [], errorMsg: string | undefined
+    try {
+      const envelope: any = await dispatch(createTradesBulk(bulkItems as any)).unwrap()
+      created = envelope?.data?.created || 0
+      skipped = envelope?.data?.skipped || []
+      apiErrors = envelope?.data?.errors || []
+    } catch(e:any) { errorMsg = e.message || String(e) }
+    setIsSaving(false)
+
+    // Compose toast message
+    const closeable = { id:'save-trades', dismissible: true as any }
+    if(errorMsg) {
+      toast.error(`Bulk save failed (${errorMsg.substring(0,160)})`, closeable)
+      return
+    }
+    const skippedCount = skipped.length
+  const errorCount = apiErrors.length
+    if(created>0 && skippedCount===0 && errorCount===0) {
+      toast.success(`Created ${created} trade(s)`, closeable)
+  setIsSaved(true)
+      setIsDirty(false)
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+  // Invalidate / refresh trade list after successful import
+  dispatch(listTrades(undefined))
+      return
+    }
+    if(created===0 && skippedCount>0 && errorCount===0) {
+      toast.info(`Skipped ${skippedCount} (duplicates)`, closeable)
+      // treat as saved state since duplicates already exist
+  setIsSaved(true)
+      setIsDirty(false)
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+  dispatch(listTrades(undefined))
+      return
+    }
+    if(created>0 && (skippedCount>0 || errorCount>0)) {
+      toast.warning?.(`Created ${created}, skipped ${skippedCount}${errorCount?`, errors ${errorCount}`:''}`, closeable) || toast(`Created ${created}, skipped ${skippedCount}${errorCount?`, errors ${errorCount}`:''}`, closeable)
+  setIsSaved(true)
+      setIsDirty(false)
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+  dispatch(listTrades(undefined))
+      return
+    }
+    // Fallback
+    toast.error('Bulk save produced no result', closeable)
+  }
 
   const handleRowSelect = (id: string) => {
     setTrades((prevTrades) =>
@@ -204,7 +406,7 @@ export function TradeImportDialog() {
       return;
     }
 
-    const sides = [...new Set(selectedTrades.map((trade) => trade.side))];
+  const sides = [...new Set(selectedTrades.map((trade) => trade.side))];
     if (sides.length > 1) {
       alert("You can only merge trades with the same side.");
       return;
@@ -216,7 +418,7 @@ export function TradeImportDialog() {
     }
     const symbol = symbols[0];
 
-    const mergedTrade: ImportedTrade = {
+    const mergedTradeBase: ImportedTrade = {
       tradeId: uuidv4(),
       symbol: symbol,
       openDate: selectedTrades.reduce((minDate, trade) => {
@@ -238,7 +440,7 @@ export function TradeImportDialog() {
       side: selectedTrades[0].side, // Assuming all trades are of the same side
 
       // Calculate Entry and Exit
-      entry:
+  entry:
         selectedTrades[0].side === "BUY"
           ? selectedTrades.reduce((minEntry, trade) => {
               return trade.entry < minEntry ? trade.entry : minEntry;
@@ -256,9 +458,11 @@ export function TradeImportDialog() {
               return trade.exit < minExit ? trade.exit : minExit;
             }, selectedTrades[0].exit),
 
-      qty: selectedTrades.reduce((sum, trade) => sum + trade.qty, 0),
+  qty: selectedTrades.reduce((sum, trade) => sum + (trade.qty||0), 0),
       selected: false,
     };
+
+    const mergedTrade = attachIdempotency(mergedTradeBase)
 
     setTrades((prevTrades) => [
       ...prevTrades.filter((trade) => !trade.selected),
@@ -267,7 +471,14 @@ export function TradeImportDialog() {
   };
 
   const handleDeleteTrades = () => {
-    setTrades((prevTrades) => prevTrades.filter((trade) => !trade.selected));
+    setTrades(prev => {
+      const next = prev.filter(t=>!t.selected)
+      if(next.length !== prev.length) {
+        setIsDirty(true)
+        setIsSaved(false)
+      }
+      return next
+    })
   };
 
   const handleClick = () => {
@@ -286,6 +497,7 @@ export function TradeImportDialog() {
         onClick={handleClick}
         className="max-w-[90vw] max-h-[90vh] w-full h-full flex flex-col p-5 mb-10"
       >
+  {/* Draft auto-restore removed per request: starting fresh each open */}
         <DialogHeader className=" pb-2">
           <DialogTitle className="flex justify-between items-center">
             <span>Import Trades</span>
@@ -314,6 +526,17 @@ export function TradeImportDialog() {
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
             onPaste={handlePaste}
+            // Single click just focuses so user can Ctrl+V. Double click opens file dialog.
+            onClick={() => {
+              if(isLoading) return;
+              // focus container for accessibility / paste readiness
+              (dropZoneRef.current as HTMLDivElement | null)?.focus?.();
+            }}
+            onDoubleClick={() => {
+              if(isLoading) return;
+              fileInputRef.current?.click();
+            }}
+            tabIndex={0}
             className={cn(
               "border-2 border-dashed rounded-lg p-4 text-center transition-colors overflow-auto",
               "hover:border-zinc-400 cursor-pointer",
@@ -321,10 +544,23 @@ export function TradeImportDialog() {
               "max-h-[20vh]"
             )}
           >
+            {/* Hidden file input for click-to-upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if(file && file.type.startsWith('image/')) handleImageUpload(file);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
             {isLoading ? (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-3">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                Processing image...
+                <span>Processing image...</span>
+                <Button variant="ghost" size="sm" disabled={isCancelling} onClick={()=>{ extractionCancelRef.current.cancelled = true; setIsCancelling(true) }}>Cancel</Button>
               </div>
             ) : uploadedImage ? (
               <div className="space-y-4">
@@ -333,14 +569,27 @@ export function TradeImportDialog() {
                   alt="Uploaded trade"
                   className="w-full h-auto"
                 />
+                {(extractState.lastParseSteps || extractState.lastElapsedMs) && (
+                  <div className='text-left'>
+                    <div className='flex items-center gap-2 mb-1'>
+                      {extractState.lastElapsedMs && <span className='inline-block text-[10px] px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700'>Elapsed {extractState.lastElapsedMs}ms</span>}
+                      {extractState.lastParseSteps && <p className='text-xs font-medium'>Parse Steps:</p>}
+                    </div>
+                    {extractState.lastParseSteps && (
+                      <ul className='text-xs list-disc pl-4 space-y-0.5'>
+                        {extractState.lastParseSteps.map((s,i)=>(<li key={i}>{s}</li>))}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 <p className="text-sm text-zinc-500">
-                  Click or paste another image to replace
+                  Double-click to choose a file, or single click then paste (Ctrl+V) / drag to replace
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
                 <Upload className="h-8 w-8 mx-auto text-zinc-400" />
-                <p>Drag & drop or paste a trade screenshot here</p>
+                <p>Drag & drop, double-click to browse, or click then paste a trade screenshot</p>
                 <p className="text-sm text-zinc-500">
                   Supported formats: PNG, JPG, JPEG
                 </p>
@@ -368,17 +617,17 @@ export function TradeImportDialog() {
               <div className="bg-white border-b">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[20px]"></TableHead>
-                      <TableHead className="w-[160px]">Open Date</TableHead>
-                      <TableHead className="w-[160px]">Close Date</TableHead>
-                      <TableHead className="w-[100px]">Symbol</TableHead>
-                      <TableHead className="w-[80px]">Side</TableHead>
-                      <TableHead className="w-[100px]">Entry</TableHead>
-                      <TableHead className="w-[100px]">Exit</TableHead>
-                      <TableHead className="w-[100px]">Quantity</TableHead>
-                      <TableHead className="w-[100px]">P&L</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
+                    <TableRow className="text-center">
+                      <TableHead className="w-[20px] text-center"></TableHead>
+                      <TableHead className="w-[160px] text-center">Open Date</TableHead>
+                      <TableHead className="w-[160px] text-center">Close Date</TableHead>
+                      <TableHead className="w-[100px] text-center">Symbol</TableHead>
+                      <TableHead className="w-[80px] text-center">Side</TableHead>
+                      <TableHead className="w-[100px] text-center">Entry</TableHead>
+                      <TableHead className="w-[100px] text-center">Exit</TableHead>
+                      <TableHead className="w-[100px] text-center">Quantity</TableHead>
+                      <TableHead className="w-[100px] text-center">P&L</TableHead>
+                      <TableHead className="w-[100px] text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                 </Table>
@@ -386,7 +635,8 @@ export function TradeImportDialog() {
               <div
                 className="overflow-auto h-[30vh]"
                 onClick={(e) => {
-                  if (editingCell) {
+                  // Only close editing if clicking on the container itself, not its children
+                  if (editingCell && e.target === e.currentTarget) {
                     setEditingCell(null);
                   }
                 }}
@@ -394,200 +644,199 @@ export function TradeImportDialog() {
                 <Table>
                   <TableBody>
                     {trades.map((trade) => (
-                      <TableRow key={trade.tradeId}>
-                        <TableCell className="w-[20px]">
-                          <Checkbox
-                            checked={trade.selected || false}
-                            onCheckedChange={() =>
-                              trade.tradeId && handleRowSelect(trade.tradeId)
-                            }
-                          />
+                      <TableRow key={trade.tradeId} className="text-center">
+                        <TableCell className="w-[20px] text-center">
+                            <Checkbox
+                              checked={trade.selected || false}
+                              onCheckedChange={()=> { if(trade.tradeId) { handleRowSelect(trade.tradeId) } }}
+                            />
                         </TableCell>
-                        <TableCell className="w-[160px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "openDate" ? (
-                            <DateTimePicker24h />
+                        <TableCell className="w-[160px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "openDate" ? (
+                            <Input
+                              autoFocus
+                              defaultValue={trade.openDate}
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'openDate', e.target.value)}
+                              onKeyDown={(e)=>{
+                                if(e.key==='Enter') (e.target as HTMLInputElement).blur();
+                                if(e.key==='Escape') setEditingCell(null);
+                              }}
+                            />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "openDate",
-                                });
-                              }}
-                            >
-                              {trade.openDate}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'openDate'}); }}
+                            >{trade.openDate}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[160px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "closeDate" ? (
-                            <DateTimePicker24h />
+                        <TableCell className="w-[160px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "closeDate" ? (
+                            <Input
+                              autoFocus
+                              defaultValue={trade.closeDate}
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'closeDate', e.target.value)}
+                              onKeyDown={(e)=>{
+                                if(e.key==='Enter') (e.target as HTMLInputElement).blur();
+                                if(e.key==='Escape') setEditingCell(null);
+                              }}
+                            />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "closeDate",
-                                });
-                              }}
-                            >
-                              {trade.closeDate}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'closeDate'}); }}
+                            >{trade.closeDate}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "symbol" ? (
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "symbol" ? (
                             <Input
                               defaultValue={trade.symbol}
                               autoFocus
-                              onBlur={(e) =>
-                                handleCellEdit(
-                                  trade.tradeId || '',
-                                  "symbol",
-                                  e.target.value
-                                )
-                              }
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'symbol', e.target.value)}
+                              onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
                             />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "symbol",
-                                });
-                              }}
-                            >
-                              {trade.symbol}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'symbol'}); }}
+                            >{trade.symbol}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[80px]">
-                          <span
-                            className={cn(
-                              "px-2 py-1 rounded text-xs font-medium",
-                              trade.side === "BUY"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            )}
-                          >
-                            {trade.side}
-                          </span>
+                        <TableCell className="w-[80px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === 'side' ? (
+                            <Select
+                              defaultValue={trade.side}
+                              onValueChange={(val)=>{ handleCellEdit(trade.tradeId||'', 'side', val); }}
+                            >
+                              <SelectTrigger className="h-7 text-xs text-center"> <SelectValue /> </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="BUY">BUY</SelectItem>
+                                <SelectItem value="SELL">SELL</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span
+                              className={cn(
+                                "px-2 py-1 rounded text-xs font-medium cursor-pointer",
+                                trade.side === "BUY" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                              )}
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'side'}); }}
+                            >{trade.side}</span>
+                          )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "entry" ? (
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "entry" ? (
                             <Input
                               type="number"
                               step="0.01"
                               defaultValue={trade.entry}
                               autoFocus
-                              onBlur={(e) =>
-                                handleCellEdit(
-                                  trade.tradeId || '',
-                                  "entry",
-                                  parseFloat(e.target.value)
-                                )
-                              }
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'entry', parseFloat(e.target.value))}
+                              onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
                             />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "entry",
-                                });
-                              }}
-                            >
-                              {trade.entry}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'entry'}); }}
+                            >{round2(trade.entry).toFixed(2)}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "exit" ? (
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "exit" ? (
                             <Input
                               type="number"
                               step="0.01"
                               defaultValue={trade.exit}
                               autoFocus
-                              onBlur={(e) =>
-                                handleCellEdit(
-                                  trade.tradeId || '',
-                                  "exit",
-                                  parseFloat(e.target.value)
-                                )
-                              }
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'exit', parseFloat(e.target.value))}
+                              onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
                             />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "exit",
-                                });
-                              }}
-                            >
-                              {trade.exit}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'exit'}); }}
+                            >{round2(trade.exit).toFixed(2)}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          {editingCell?.id === trade.tradeId &&
-                          editingCell?.field === "qty" ? (
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === "qty" ? (
                             <Input
                               type="number"
                               defaultValue={trade.qty}
                               autoFocus
-                              onBlur={(e) =>
-                                handleCellEdit(
-                                  trade.tradeId || '',
-                                  "qty",
-                                  parseInt(e.target.value)
-                                )
-                              }
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'qty', parseInt(e.target.value))}
+                              onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
                             />
                           ) : (
                             <div
                               className="cursor-pointer hover:bg-zinc-100 p-1 rounded font-mono"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent immediate blur
-                                setEditingCell({
-                                  id: trade.tradeId || '',
-                                  field: "qty",
-                                });
-                              }}
-                            >
-                              {trade.qty}
-                            </div>
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'qty'}); }}
+                            >{trade.qty}</div>
                           )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          <span
-                            className={cn(
-                              "font-mono"
-                              // trade.pnl >= 0 ? "text-green-600" : "text-red-600"
-                            )}
-                          >
-                            ${trade.pnl}
-                          </span>
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === 'pnl' ? (
+                            <Input
+                              type="number"
+                              defaultValue={trade.pnl}
+                              autoFocus
+                              className="text-center"
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'pnl', parseFloat(e.target.value))}
+                              onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
+                            />
+                          ) : (
+                            <span
+                              className={cn("font-mono cursor-pointer", trade.pnl>=0? 'text-green-600':'text-red-600')}
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'pnl'}); }}
+                            >${round2(trade.pnl).toFixed(2)}</span>
+                          )}
                         </TableCell>
-                        <TableCell className="w-[100px]">
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-zinc-100">
-                            {trade.status}
-                          </span>
+                        <TableCell className="w-[100px] text-center">
+                          {editingCell?.id === trade.tradeId && editingCell?.field === 'status' ? (
+                            <Select
+                              defaultValue={trade.status}
+                              onValueChange={(val)=>{ handleCellEdit(trade.tradeId||'', 'status', val); }}
+                            >
+                              <SelectTrigger className="h-7 text-xs text-center"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="TP">TP</SelectItem>
+                                <SelectItem value="SL">SL</SelectItem>
+                                <SelectItem value="BE">BE</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span
+                              className={cn(
+                                "px-2 py-1 rounded text-xs font-medium cursor-pointer",
+                                trade.status==='TP' ? 'bg-green-100 text-green-800' : trade.status==='SL' ? 'bg-red-100 text-red-800' : 'bg-zinc-100 text-zinc-700'
+                              )}
+                              title="Double-click to edit"
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'status'}); }}
+                            >{trade.status}</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -624,3 +873,5 @@ export function TradeImportDialog() {
     </Dialog>
   );
 }
+
+// Draft persistence component removed (requirement: start clean on reopen)

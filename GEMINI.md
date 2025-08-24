@@ -1,19 +1,20 @@
 # Project Overview
 
-This is a trading journal application built with React, Vite, TypeScript, Redux, and Firebase. It allows users to track their trades and view various analytics about their performance.
+Trading Journal application built with React, Vite, TypeScript, Redux Toolkit, and an AWS backend (Cognito-authenticated REST API: API Gateway + Lambda + DynamoDB + S3 for images). Users record trades, journal psychology, and view analytics.
 
-The application uses Firebase for authentication and data storage. The frontend is built with React and TypeScript, using Vite for the build tool. Redux is used for state management. The UI is built with a combination of custom components and components from the Radix UI library.
+Firebase has been fully removed (was previously used for Auth/Firestore/Storage). Configuration is now AWS-only; no feature flag remains.
 
 ## Building and Running
 
 ### Prerequisites
 
-*   Node.js and npm
+* Node.js and npm (LTS)
+* AWS backend deployed (see `docs/` for infrastructure phases)
 
 ### Installation
 
-1.  Clone the repository.
-2.  Install the dependencies:
+1. Clone the repository.
+2. Install dependencies:
     ```bash
     npm install
     ```
@@ -24,7 +25,7 @@ The application uses Firebase for authentication and data storage. The frontend 
 npm run dev
 ```
 
-This will start the development server at `http://localhost:5173`.
+Dev server: http://localhost:5173
 
 ### Building for production
 
@@ -32,12 +33,16 @@ This will start the development server at `http://localhost:5173`.
 npm run build
 ```
 
-This will create a `dist` directory with the production-ready files.
+Outputs production bundle to `dist/`.
 
 ## Development Conventions
 
-*   The project uses TypeScript for static typing.
-*   The code is organized into a `src` directory, with subdirectories for components, pages, and Redux store.
-*   The project uses ESLint for linting.
-*   The project uses Prettier for code formatting.
-*   The project uses aliases for imports, with `@` pointing to the `src` directory.
+* TypeScript throughout
+* Redux Toolkit slices in `src/app`
+* API wrappers under `src/lib/api` (auth, trades, stats forthcoming)
+* UI components in `src/components` and `src/ui` (Radix + shadcn based)
+* Tailwind CSS for styling
+* Import alias `@` -> `src`
+* Env: only `VITE_API_BASE_URL` optionally; a sensible default exists for local testing
+
+See `docs/migration-firebase-to-aws.md` for historical context and remaining post-migration cleanup.

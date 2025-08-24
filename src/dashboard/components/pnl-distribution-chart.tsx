@@ -3,17 +3,14 @@
 import {
   Bar,
   BarChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip, // Keep for now
   CartesianGrid,
 } from "recharts";
 import { useSelector } from "react-redux";
 import { useMemo } from "react";
 
-import { RootState } from "@/app/store";
-import { selectTradeDetails } from "@/app/selectors";
+import { ApiTrade } from '@/app/types'
 import {
   ChartConfig,
   ChartContainer,
@@ -49,10 +46,10 @@ const brackets = [
 ];
 
 export function PnlDistributionChart() {
-  const trades = useSelector(selectTradeDetails);
+  const trades: ApiTrade[] = useSelector((s:any)=>s.AwsTrades.items);
 
   const chartData = useMemo(() => {
-    if (!trades || trades.length === 0) {
+  if (!trades || trades.length === 0) {
       return [];
     }
 
@@ -66,8 +63,8 @@ export function PnlDistributionChart() {
     );
 
     // Count trades in each bracket
-    trades.forEach((trade) => {
-      const pnl = trade.pnl;
+    trades.forEach((trade: ApiTrade) => {
+      const pnl = trade.pnl || 0;
       for (const bracket of brackets) {
         // Handle exclusive upper bound for non-zero brackets, inclusive for zero
         const upperCheck =

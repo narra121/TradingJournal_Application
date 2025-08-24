@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog';
-import { Trade } from '@/app/types';
+import { ApiTrade } from '@/app/types';
 import { format } from 'date-fns';
 import { cn } from 'lib/utils';
 import { ScrollArea } from '@/ui/scroll-area';
-import { TradeDetails } from './TradeDetails';
+// Legacy TradeDetails component removed in ApiTrade refactor
 
 interface DailyTradesDialogProps {
   isOpen: boolean;
   onClose: () => void;
   selectedDate: Date | null;
-  trades: Trade[];
+  trades: ApiTrade[];
 }
 
 export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades }: DailyTradesDialogProps) {
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<ApiTrade | null>(null);
 
   useEffect(() => {
     if (isOpen && trades.length > 0) {
@@ -46,27 +46,27 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades }: Dai
                 <ul className="space-y-2">
                   {trades.map((trade) => (
                     <li
-                      key={trade.trade.tradeId}
+                      key={trade.tradeId}
                       className={cn(
                         "p-3 rounded-md cursor-pointer hover:bg-gray-100 transition-colors",
-                        selectedTrade?.trade.tradeId === trade.trade.tradeId
+                        selectedTrade?.tradeId === trade.tradeId
                           ? "bg-blue-50 text-blue-700 font-medium"
                           : "bg-white"
                       )}
                       onClick={() => setSelectedTrade(trade)}
                     >
                       <div className="text-sm font-medium">
-                        {trade.trade.symbol}
+                        {trade.symbol}
                       </div>
                       <div
                         className={cn(
                           "text-xs",
-                          trade.trade.pnl >= 0
+                          (trade.pnl || 0) >= 0
                             ? "text-green-600"
                             : "text-red-600"
                         )}
                       >
-                        PNL: {trade.trade.pnl.toFixed(2)}
+                        PNL: {(trade.pnl || 0).toFixed(2)}
                       </div>
                     </li>
                   ))}
@@ -79,7 +79,13 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades }: Dai
           <div className="w-4/5 p-4 flex flex-col">
             <ScrollArea className="flex-grow pr-4">
               {selectedTrade ? (
-                <TradeDetails trade={selectedTrade.trade} />
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">{selectedTrade.symbol}</h3>
+                  <p className="text-sm">Side: {selectedTrade.side}</p>
+                  <p className="text-sm">Qty: {selectedTrade.quantity}</p>
+                  <p className="text-sm">Entry: {selectedTrade.entryPrice ?? '-'} / Exit: {selectedTrade.exitPrice ?? '-'}</p>
+                  <p className={cn("text-sm", (selectedTrade.pnl||0)>=0?"text-green-600":"text-red-600")}>PnL: {(selectedTrade.pnl||0).toFixed(2)}</p>
+                </div>
               ) : (
                 <p className="text-gray-500">Select a trade to view details.</p>
               )}

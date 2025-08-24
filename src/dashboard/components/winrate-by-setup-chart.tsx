@@ -23,20 +23,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/ui/card";
-import { Trade } from "@/app/types";
+import { ApiTrade } from "@/app/types";
 
 // Colors are now handled by chartConfig
 
 // Helper function to calculate win rate
-const calculateWinRate = (trades: Trade[]): number => {
+const calculateWinRate = (trades: any[]): number => {
   if (trades.length === 0) return 0;
-  const winningTrades = trades.filter((t) => t.trade.pnl > 0).length;
+  const winningTrades = trades.filter((t) => (t.pnl ?? 0) > 0).length;
   return (winningTrades / trades.length) * 100;
 };
 
 export function WinRateBySetupChart() {
   // Select the full trades array
-  const trades = useSelector((state: RootState) => state.TradeData.trades);
+  const trades: ApiTrade[] = useSelector((state: RootState) => state.AwsTrades.items);
 
   const chartData = useMemo(() => {
     if (!trades || trades.length === 0) {
@@ -44,16 +44,16 @@ export function WinRateBySetupChart() {
     }
 
     // Group trades by setupType
-    const groupedBySetup: { [key: string]: Trade[] } = trades.reduce(
+    const groupedBySetup: { [key: string]: ApiTrade[] } = trades.reduce(
       (acc, trade) => {
-        const setup = trade.analysis?.setupType || "Unknown"; // Handle missing setupType
+        const setup = (trade as any).setupType || 'Unknown'
         if (!acc[setup]) {
           acc[setup] = [];
         }
         acc[setup].push(trade);
         return acc;
       },
-      {} as { [key: string]: Trade[] }
+      {} as { [key: string]: ApiTrade[] }
     );
 
     // Calculate win rate for each group

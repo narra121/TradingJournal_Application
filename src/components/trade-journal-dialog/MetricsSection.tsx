@@ -8,21 +8,21 @@ import {
   SelectValue,
 } from "@/ui/select";
 import { BarChart } from "lucide-react";
-import { Trade } from "@/app/types";
+
+export interface MetricsState {
+  riskAmount: number | null;
+  marketCondition: string;
+  tradingSession: string;
+}
 
 interface MetricsSectionProps {
-  metrics: Trade["metrics"];
-  handleMetricsChange: (field: keyof Trade["metrics"], value: any) => void;
+  metrics: MetricsState;
+  onChange: (changes: Partial<MetricsState>) => void;
   marketConditions: string[];
   sessions: string[];
 }
 
-export function MetricsSection({
-  metrics,
-  handleMetricsChange,
-  marketConditions,
-  sessions,
-}: MetricsSectionProps) {
+export function MetricsSection({ metrics, onChange, marketConditions, sessions }: MetricsSectionProps) {
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-card">
       <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -30,59 +30,22 @@ export function MetricsSection({
       </h3>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Risk per Trade (%)</Label>
-          <Input
-            type="number"
-            step="0.1"
-            placeholder="e.g., 1"
-            value={metrics.riskPerTrade || ""}
-            onChange={(e) =>
-              handleMetricsChange(
-                "riskPerTrade",
-                parseFloat(e.target.value) || 0
-              )
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Stop Loss Deviation</Label>
-          <Input
-            type="number"
-            step="0.1"
-            placeholder="e.g., 0.5"
-            value={metrics.stopLossDeviation || ""}
-            onChange={(e) =>
-              handleMetricsChange(
-                "stopLossDeviation",
-                parseFloat(e.target.value) || 0
-              )
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Target Deviation</Label>
-          <Input
-            type="number"
-            step="0.1"
-            placeholder="e.g., -0.2"
-            value={metrics.targetDeviation || ""}
-            onChange={(e) =>
-              handleMetricsChange(
-                "targetDeviation",
-                parseFloat(e.target.value) || 0
-              )
-            }
-          />
+          <Label>Risk Amount</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="e.g., 100"
+              value={metrics.riskAmount ?? ''}
+              onChange={(e) => onChange({ riskAmount: e.target.value === '' ? null : parseFloat(e.target.value) })}
+            />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Market Conditions</Label>
+          <Label>Market Condition</Label>
           <Select
-            value={metrics.marketConditions}
-            onValueChange={(value) =>
-              handleMetricsChange("marketConditions", value)
-            }
+            value={metrics.marketCondition}
+            onValueChange={(value) => onChange({ marketCondition: value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select market condition" />
@@ -100,9 +63,7 @@ export function MetricsSection({
           <Label>Trading Session</Label>
           <Select
             value={metrics.tradingSession}
-            onValueChange={(value) =>
-              handleMetricsChange("tradingSession", value)
-            }
+            onValueChange={(value) => onChange({ tradingSession: value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select trading session" />

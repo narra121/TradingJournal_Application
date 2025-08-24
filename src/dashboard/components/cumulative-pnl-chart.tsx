@@ -9,10 +9,8 @@ import {
 } from "recharts";
 import { useSelector } from "react-redux";
 import { useMemo } from "react";
-import { format, parseISO } from "date-fns";
-
-import { RootState } from "@/app/store";
-import { selectTradeDetails } from "@/app/selectors"; // Use memoized selector
+import { parseISO } from "date-fns";
+import { ApiTrade } from '@/app/types'
 import {
   ChartConfig,
   ChartContainer,
@@ -36,21 +34,21 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function CumulativePnlChart() {
-  const trades = useSelector(selectTradeDetails);
+  const trades: ApiTrade[] = useSelector((s:any)=>s.AwsTrades.items);
 
   const chartData = useMemo(() => {
-    if (!trades || trades.length === 0) {
+  if (!trades || trades.length === 0) {
       return [];
     }
 
     // Sort trades by open date
-    const sortedTrades = [...trades].sort(
+  const sortedTrades = [...trades].sort(
       (a, b) => parseISO(a.openDate).getTime() - parseISO(b.openDate).getTime()
     );
 
     let cumulativePnl = 0;
     return sortedTrades.map((trade, index) => {
-      cumulativePnl += trade.pnl;
+  cumulativePnl += trade.pnl || 0;
       return {
         name: `Trade ${index + 1}`, // Simple label, could use date
         // date: format(parseISO(trade.openDate), "dd MMM"), // Alternative X-axis label

@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { TradeDetails, UIState } from "./types";
+import { UIState } from "./types";
 
 const initialState: UIState = {
   selectedItem: null,
@@ -11,7 +11,7 @@ const uiSlice = createSlice({
   name: "ui",
   initialState,
   reducers: {
-    setSelectedItem: (state, action: PayloadAction<TradeDetails | null>) => {
+  setSelectedItem: (state, action: PayloadAction<string | null>) => {
       state.selectedItem = action.payload;
     },
     clearSelectedItem: (state) => {

@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
-import { useSelector } from "react-redux"; // Import useSelector
-import { RootState } from "../store"; // Import RootState
+import React, { useState, useMemo, useCallback } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import {
   format,
@@ -14,7 +14,10 @@ import {
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "lib/utils";
-import { Trade } from "../types";
+import { ApiTrade } from "../types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui/dialog";
+import { ScrollArea } from "@/ui/scroll-area";
+import { Badge } from "@/ui/badge";
 
 // Types for trade data
 
@@ -31,19 +34,23 @@ interface TradeData {
   [date: string]: DayTrade;
 }
 
-// Process trades into daily data
-const processTrades = (trades: Trade[]): TradeData => {
+// Process trades into daily data (using ApiTrade model)
+const processTrades = (trades: ApiTrade[]): TradeData => {
   const tradeData: TradeData = {};
 
   trades.forEach((trade) => {
-    const date = format(parseISO(trade.trade.closeDate), "yyyy-MM-dd");
-
-    if (!tradeData[date]) {
-      tradeData[date] = { profit: 0, trades: 0 };
+    const closeOrOpen = trade.closeDate || trade.openDate; // fallback to openDate if not closed
+    try {
+      const date = format(parseISO(closeOrOpen), "yyyy-MM-dd");
+      if (!tradeData[date]) {
+        tradeData[date] = { profit: 0, trades: 0 };
+      }
+      const pnl = trade.netPnl ?? trade.pnl ?? 0;
+      tradeData[date].profit += pnl;
+      tradeData[date].trades += 1;
+    } catch (e) {
+      // swallow malformed date
     }
-
-    tradeData[date].profit += trade.trade.pnl;
-    tradeData[date].trades += 1;
   });
 
   return tradeData;
@@ -57,7 +64,10 @@ const getWeekNumber = (date: Date) => {
 
 function Calender({ onSelectDate }: CalenderProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const allTrades = useSelector((state: RootState) => state.TradeData.trades); // Fetch all trades
+  const allTrades = useSelector((state: RootState) => state.AwsTrades.items as ApiTrade[]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null); // yyyy-MM-dd
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -65,11 +75,11 @@ function Calender({ onSelectDate }: CalenderProps) {
   // Filter trades for the current month
   const monthlyTrades = useMemo(() => {
     return allTrades.filter((trade) => {
+      const closeOrOpen = trade.closeDate || trade.openDate;
       try {
-        const closeDate = parseISO(trade.trade.closeDate);
-        return isWithinInterval(closeDate, { start: monthStart, end: monthEnd });
-      } catch (e) {
-        console.error("Error parsing date for trade:", trade, e);
+        const d = parseISO(closeOrOpen);
+        return isWithinInterval(d, { start: monthStart, end: monthEnd });
+      } catch {
         return false;
       }
     });
@@ -103,7 +113,7 @@ function Calender({ onSelectDate }: CalenderProps) {
   const monthlyStats = useMemo(() => {
     return monthlyTrades.reduce(
       (acc, trade) => {
-        const pnl = trade.trade.pnl;
+        const pnl = (trade.netPnl ?? trade.pnl ?? 0) as number;
         acc.totalPnl += pnl;
         acc.totalTrades += 1;
         if (pnl > 0) acc.positiveTrades += 1;
@@ -120,6 +130,30 @@ function Calender({ onSelectDate }: CalenderProps) {
       }
     );
   }, [monthlyTrades]);
+
+  const tradesByDate = useMemo(() => {
+    const map: Record<string, ApiTrade[]> = {};
+    monthlyTrades.forEach(tr => {
+      const key = format(parseISO(tr.closeDate || tr.openDate), 'yyyy-MM-dd');
+      if (!map[key]) map[key] = [];
+      map[key].push(tr);
+    });
+    // sort each day's trades by updatedAt desc then openDate
+    Object.values(map).forEach(list => list.sort((a,b)=> (b.updatedAt? new Date(b.updatedAt).getTime():0) - (a.updatedAt? new Date(a.updatedAt).getTime():0)));
+    return map;
+  }, [monthlyTrades]);
+
+  const openDayDialog = useCallback((day: Date) => {
+    const key = format(day, 'yyyy-MM-dd');
+    setSelectedDate(key);
+    const trades = tradesByDate[key] || [];
+    setSelectedTradeId(trades.length ? trades[0].tradeId : null);
+    setDialogOpen(true);
+    onSelectDate && onSelectDate(day);
+  }, [tradesByDate, onSelectDate]);
+
+  const selectedTrades = selectedDate ? tradesByDate[selectedDate] || [] : [];
+  const selectedTrade = selectedTradeId ? selectedTrades.find(t=>t.tradeId===selectedTradeId) : null;
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -227,7 +261,7 @@ function Calender({ onSelectDate }: CalenderProps) {
             <div className="p-2 text-center font-medium">Total</div>
 
             {/* Calendar grid */}
-            {Array.from(
+            {days.length > 0 && Array.from(
               { length: Math.ceil((days[0].getDay() + days.length) / 7) },
               (_, weekIndex) => {
                 const weekNumber = weekIndex + 1;
@@ -239,8 +273,7 @@ function Calender({ onSelectDate }: CalenderProps) {
                 return (
                   <React.Fragment key={`week-${weekNumber}`}>
                     {Array.from({ length: 7 }, (_, dayIndex) => {
-                      const dayNumber =
-                        weekIndex * 7 + dayIndex - days[0].getDay();
+                      const dayNumber = weekIndex * 7 + dayIndex - days[0].getDay();
                       const currentDay = days[dayNumber];
 
                       if (
@@ -256,22 +289,24 @@ function Calender({ onSelectDate }: CalenderProps) {
                       }
 
                       const dateStr = format(currentDay, "yyyy-MM-dd");
-                      const dayData = tradeData[dateStr] || {
-                        profit: 0,
-                        trades: 0,
-                      };
+                      const dayData = tradeData[dateStr] || { profit: 0, trades: 0 };
                       const isCurrentDay = isToday(currentDay);
 
                       return (
                         <div
                           key={dateStr}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); openDayDialog(currentDay); } }}
                           className={cn(
-                            "min-h-[100px] p-2 border rounded-lg relative",
+                            "min-h-[100px] p-2 border rounded-lg relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50",
                             isCurrentDay && "bg-accent",
                             dayData.profit > 0 && "bg-green-500/10",
-                            dayData.profit < 0 && "bg-red-500/10"
+                            dayData.profit < 0 && "bg-red-500/10",
+                            dayData.trades===0 && "hover:bg-muted/40",
+                            dayData.trades>0 && "hover:bg-primary/5"
                           )}
-                          onClick={() => onSelectDate && onSelectDate(currentDay)}
+                          onClick={() => openDayDialog(currentDay)}
                         >
                           <div className="flex justify-between items-start">
                             <span className="font-medium">
@@ -329,6 +364,90 @@ function Calender({ onSelectDate }: CalenderProps) {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl gap-0 p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle>
+              {selectedDate ? format(parseISO(selectedDate), 'MMMM d, yyyy') : 'Day Trades'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex h-[500px]">
+            {/* Trades list */}
+            <div className="border-r bg-muted/30 flex flex-col w-[15vw] min-w-[180px] max-w-[300px]">
+              <div className="p-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Trades</div>
+              <ScrollArea className="flex-1">
+                <div className="px-2 pb-2 space-y-1">
+                  {selectedTrades.length === 0 && (
+                    <div className="text-sm text-muted-foreground p-2">No trades for this day.</div>
+                  )}
+                  {selectedTrades.map(t => {
+                    const pnl = t.netPnl ?? t.pnl ?? 0;
+                    return (
+                      <button
+                        key={t.tradeId}
+                        onClick={()=> setSelectedTradeId(t.tradeId)}
+                        className={cn(
+                          "w-full text-left rounded-md border p-2 bg-background hover:bg-accent/50 transition-colors",
+                          selectedTradeId===t.tradeId && "border-primary ring-1 ring-primary"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{t.symbol}</span>
+                          <span className={cn("text-xs font-semibold", pnl>0?"text-green-600": pnl<0?"text-red-600":"text-muted-foreground")}>{pnl?.toFixed(2)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{t.side}</span>
+                          {t.status && <Badge variant="secondary" className="px-1 py-0 text-[10px]">{t.status}</Badge>}
+                          {t.tradeGrade && <Badge variant="outline" className="px-1 py-0 text-[10px]">{t.tradeGrade}</Badge>}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+            {/* Details */}
+            <div className="flex-1 flex flex-col">
+              <div className="p-2 text-xs font-medium uppercase tracking-wide text-muted-foreground border-b">Details</div>
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {!selectedTrade && <div className="text-sm text-muted-foreground">Select a trade to view details.</div>}
+                  {selectedTrade && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        <span className="text-muted-foreground">Symbol</span><span className="font-medium">{selectedTrade.symbol}</span>
+                        <span className="text-muted-foreground">Side</span><span>{selectedTrade.side}</span>
+                        <span className="text-muted-foreground">Quantity</span><span>{selectedTrade.quantity}</span>
+                        <span className="text-muted-foreground">Entry</span><span>{selectedTrade.entryPrice ?? '-'}</span>
+                        <span className="text-muted-foreground">Exit</span><span>{selectedTrade.exitPrice ?? '-'}</span>
+                        <span className="text-muted-foreground">PnL</span><span className={cn(selectedTrade.netPnl??selectedTrade.pnl??0>0?'text-green-600':(selectedTrade.netPnl??selectedTrade.pnl??0)<0?'text-red-600':'')}>{(selectedTrade.netPnl ?? selectedTrade.pnl ?? 0).toFixed(2)}</span>
+                        <span className="text-muted-foreground">Status</span><span>{selectedTrade.status}</span>
+                        <span className="text-muted-foreground">Grade</span><span>{selectedTrade.tradeGrade ?? '-'}</span>
+                        <span className="text-muted-foreground">Opened</span><span>{selectedTrade.openDate}</span>
+                        <span className="text-muted-foreground">Closed</span><span>{selectedTrade.closeDate || '-'}</span>
+                        <span className="text-muted-foreground">Timeframe</span><span>{selectedTrade.timeframe || '-'}</span>
+                        <span className="text-muted-foreground">Session</span><span>{selectedTrade.tradingSession || '-'}</span>
+                      </div>
+                      {(selectedTrade.preTradeNotes || selectedTrade.postTradeNotes) && (
+                        <div className="space-y-3 text-sm">
+                          {selectedTrade.preTradeNotes && <div><div className="font-medium mb-1">Pre-trade Notes</div><p className="whitespace-pre-wrap text-muted-foreground">{selectedTrade.preTradeNotes}</p></div>}
+                          {selectedTrade.postTradeNotes && <div><div className="font-medium mb-1">Post-trade Notes</div><p className="whitespace-pre-wrap text-muted-foreground">{selectedTrade.postTradeNotes}</p></div>}
+                        </div>
+                      )}
+                      {selectedTrade.tags && selectedTrade.tags.length>0 && (
+                        <div className="text-xs flex flex-wrap gap-1">
+                          {selectedTrade.tags.map(tag => <Badge key={tag} variant="outline" className="px-1 py-0">{tag}</Badge>)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

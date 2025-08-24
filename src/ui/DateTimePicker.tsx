@@ -10,14 +10,29 @@ import { Calendar } from "./calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { ScrollArea, ScrollBar } from "./scroll-area";
 
-export function DateTimePicker24h() {
-  const [date, setDate] = React.useState<Date>();
+interface DateTimePicker24hProps {
+  value?: Date;
+  onChange?: (date: Date) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+export function DateTimePicker24h({ value, onChange, placeholder = "MM/DD/YYYY hh:mm", className }: DateTimePicker24hProps) {
+  const [uncontrolledDate, setUncontrolledDate] = React.useState<Date | undefined>(value);
   const [isOpen, setIsOpen] = React.useState(false);
+  const date = value ?? uncontrolledDate;
+
+  React.useEffect(()=>{
+    if (value && value !== uncontrolledDate) {
+      setUncontrolledDate(value);
+    }
+  },[value]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
-      setDate(selectedDate);
+  setUncontrolledDate(selectedDate);
+  onChange?.(selectedDate);
     }
   };
 
@@ -29,7 +44,8 @@ export function DateTimePicker24h() {
       } else if (type === "minute") {
         newDate.setMinutes(parseInt(value));
       }
-      setDate(newDate);
+      setUncontrolledDate(newDate);
+      onChange?.(newDate);
     }
   };
 
@@ -40,14 +56,15 @@ export function DateTimePicker24h() {
           variant="outline"
           className={cn(
             "w-full justify-start text-left font-normal",
-            !date && "text-muted-foreground"
+            !date && "text-muted-foreground",
+            className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {date ? (
             format(date, "MM/dd/yyyy hh:mm")
           ) : (
-            <span>MM/DD/YYYY hh:mm</span>
+            <span>{placeholder}</span>
           )}
         </Button>
       </PopoverTrigger>

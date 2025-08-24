@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
-import { Trade } from "@/app/types";
+import { ApiTrade } from "@/app/types";
 import {
   format,
   startOfMonth,
@@ -22,7 +22,7 @@ interface DayTrade {
 }
 
 interface CalenderProps {
-  data: Trade[];
+  data: ApiTrade[]; // expecting top-level closeDate/openDate/pnl
   onSelectDate?: (date: Date) => void;
 }
 
@@ -31,17 +31,40 @@ interface TradeData {
 }
 
 // Process trades into daily data
-const processTrades = (trades: Trade[]): TradeData => {
+// Try multiple parsing strategies to handle different backend formats
+const coerceDate = (raw: any): Date | null => {
+  if(!raw) return null;
+  if(raw instanceof Date && !isNaN(raw.getTime())) return raw;
+  if(typeof raw === 'number') { const d = new Date(raw); return isNaN(d.getTime())?null:d; }
+  if(typeof raw === 'string') {
+    let s = raw.trim();
+    // Replace space separator with 'T' if looks like "YYYY-MM-DD HH:mm:ss"
+    if(/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}/.test(s)) s = s.replace(' ', 'T');
+    // If no timezone, let Date parse as local; parseISO may throw on some variants
+    let d: Date | null = null;
+    try { d = parseISO(s); } catch { /* ignore */ }
+    if(!d || isNaN(d.getTime())) { d = new Date(s); }
+    return !d || isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+const processTrades = (trades: ApiTrade[] | any[]): TradeData => {
   const tradeData: TradeData = {};
 
   trades.forEach((trade) => {
-    const date = format(parseISO(trade.trade.closeDate), "yyyy-MM-dd");
+    // Accept both flattened and legacy nested shapes
+    const rawDate = trade.closeDate || trade.openDate || trade.trade?.closeDate || trade.trade?.openDate;
+  if(!rawDate) return;
+    const parsed = coerceDate(rawDate);
+    if(!parsed) return;
+  const date = format(parsed, "yyyy-MM-dd");
 
     if (!tradeData[date]) {
       tradeData[date] = { profit: 0, trades: 0 };
     }
-
-    tradeData[date].profit += trade.trade.pnl;
+    const pnlVal = trade.pnl ?? trade.trade?.pnl;
+    tradeData[date].profit += Number(pnlVal) || 0;
     tradeData[date].trades += 1;
   });
 
@@ -60,21 +83,41 @@ function CalenderView({ data, onSelectDate }: CalenderProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
 
+  // Debug logging
+  console.log('CalendarView DEBUG:', {
+    totalTrades: data?.length || 0,
+    currentMonth: format(currentDate, 'yyyy-MM'),
+    monthStart: format(monthStart, 'yyyy-MM-dd'),
+    monthEnd: format(monthEnd, 'yyyy-MM-dd'),
+    sampleTrade: data?.[0] || null
+  });
+
   // Filter trades for the current month
   const monthlyTrades = useMemo(() => {
-    return data.filter((trade) => {
-      try {
-        const closeDate = parseISO(trade.trade.closeDate);
-        return isWithinInterval(closeDate, { start: monthStart, end: monthEnd });
-      } catch (e) {
-        console.error("Error parsing date for trade:", trade, e);
-        return false;
-      }
+    const filtered = (data as any[]).filter((t) => {
+      const rawDate = t.closeDate || t.openDate || t.trade?.closeDate || t.trade?.openDate;
+      const d = coerceDate(rawDate);
+      const inRange = d ? isWithinInterval(d, { start: monthStart, end: monthEnd }) : false;
+      
+      // Debug each trade
+      console.log('Trade filter:', {
+        tradeId: t.tradeId || t.id || 'unknown',
+        rawDate,
+        parsedDate: d ? format(d, 'yyyy-MM-dd') : null,
+        inRange
+      });
+      
+      return inRange;
     });
-  }, [data, monthStart, monthEnd]);
-
-  // Process trades for daily view (only for the current month's trades)
-  const tradeData = useMemo(() => processTrades(monthlyTrades), [monthlyTrades]);
+    
+    console.log('Filtered trades for month:', filtered.length);
+    return filtered;
+  }, [data, monthStart, monthEnd]);  // Process trades for daily view (only for the current month's trades)
+  const tradeData = useMemo(() => {
+    const processed = processTrades(monthlyTrades);
+    console.log('Processed trade data:', processed);
+    return processed;
+  }, [monthlyTrades]);
   const days = useMemo(() => eachDayOfInterval({ start: monthStart, end: monthEnd }), [monthStart, monthEnd]);
 
   const weeklyTotals = useMemo(() => {
@@ -100,8 +143,8 @@ function CalenderView({ data, onSelectDate }: CalenderProps) {
 
   const monthlyStats = useMemo(() => {
     return monthlyTrades.reduce(
-      (acc, trade) => {
-        const pnl = trade.trade.pnl;
+        (acc, t: any) => {
+          const pnl = Number(t.pnl ?? t.trade?.pnl) || 0;
         acc.totalPnl += pnl;
         acc.totalTrades += 1;
         if (pnl > 0) acc.positiveTrades += 1;

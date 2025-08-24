@@ -27,7 +27,7 @@ Comprehensive, sequential checklist to replace Firebase Auth/Firestore/Storage w
 NOTE: Existing Firebase data will NOT be migrated; AWS environment starts empty.
 - [x] Create feature branch `feat/aws-migration` (⚠️)  
 - [x] Capture current production (or main) build works (build + lint)  
-- [ ] Freeze adding new Firebase-dependent features during migration window  
+- [x] Freeze adding new Firebase-dependent features during migration window (completed; Firebase removed)  
 - [x] Add a temporary feature flag env var `VITE_BACKEND_MODE=firebase|aws` to allow incremental switch (`.env.example`)  
 - [x] Add `VITE_API_BASE_URL` placeholder for AWS API (`.env.example`)  
 
@@ -97,7 +97,7 @@ Will add in `src/app/types/trade-aws.ts`:
 - [x] Update barrel (`index.ts`) to re-export new AWS types (without breaking existing yet)  
 - [x] Add type guards / mapping helper `mapLegacyTradeToApiPartial()` for transitional rendering  
 - [ ] (Pending) Remove legacy mapping once all components consume `ApiTrade`  
-- [ ] No runtime changes yet (keep Firebase feature-flag path until Phase 4)  
+- [ ] (Legacy note removable) Remove legacy mapping helper once all components on ApiTrade  
 
 Reference: Types derived from JSON Schemas in `/schemas` (`trade-create.schema.json`, `trade-update.schema.json`). Any schema change should regenerate corresponding interfaces.
 
@@ -118,7 +118,7 @@ New: store tokens + decoded user claims (sub, email) & expiry.
 - [ ] Replace `onAuthStateChanged` logic in `LoginPage.tsx` with token bootstrap from localStorage  
 - [x] Add secure storage (localStorage keys: `tj.idToken`, `tj.refreshToken`, `tj.expiresAt`)  
 - [ ] Implement logout: clear tokens + Redux reset (awsLogout in slice, not yet wired to UI)  
-- [ ] Feature flag: if `VITE_BACKEND_MODE=firebase` keep old path, else AWS path.
+- [x] Feature flag: if `VITE_BACKEND_MODE=firebase` keep old path, else AWS path. (Removed after full migration)
 
 Error Handling: Standardize errors to show toast with `message` or generic fallback.
 
@@ -196,8 +196,9 @@ Components impacted: `TradeJournalDialog`, `TradesPage`, `AnalyticsTable`, `Trad
 ## 9. Cleanup & Decommission Firebase
 - [x] Remove firebase imports & code paths (LoginPage & LoginForm updated)  
 - [x] Delete `firebase.ts`, `auth.ts` (Firebase), Firestore thunks (traceSlice removed)  
-- [ ] Prune `firebase` dependency from `package.json`  
-- [ ] Remove Firebase env vars from `.env` & docs  
+- [x] Prune `firebase` dependency from `package.json`  
+- [x] Remove Firebase env vars from `.env` & docs (replaced with AWS-only vars)  
+- [x] Remove feature flag and hardcode AWS path  
 - [ ] Update `GEMINI.md` to reflect AWS stack  
 - [ ] Remove dead code (unsubscribe logic, storage placeholders)  
 

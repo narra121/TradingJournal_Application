@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { AuthLoginResponse, IdTokenClaims } from './types'
-import { BACKEND_MODE, API_BASE_URL } from '@/lib/config'
+import { API_BASE_URL } from '@/lib/config'
 
 interface AwsAuthState {
   idToken: string | null
@@ -10,6 +10,8 @@ interface AwsAuthState {
   user: { sub: string; email?: string } | null
   loading: boolean
   error: string | null
+  refreshScheduled?: boolean
+  bootstrapped: boolean
 }
 
 const initialState: AwsAuthState = {
@@ -20,6 +22,8 @@ const initialState: AwsAuthState = {
   user: null,
   loading: false,
   error: null,
+  refreshScheduled: false,
+  bootstrapped: false,
 }
 
 function decodeJwt(token: string): IdTokenClaims | null {
@@ -61,6 +65,18 @@ export const awsRefresh = createAsyncThunk(
   }
 )
 
+// Schedule automatic refresh (simple singleton timer in module scope)
+let refreshTimer: number | null = null
+
+function scheduleRefresh(dispatch: any, state: AwsAuthState) {
+  if (!state.expiresAt || !state.refreshToken) return
+  const fireIn = 59 * 60 // refresh after 59 minutes (3540 seconds)
+  if (refreshTimer) window.clearTimeout(refreshTimer)
+  refreshTimer = window.setTimeout(() => {
+    dispatch(awsRefresh({ refreshToken: state.refreshToken! }))
+  }, fireIn * 1000)
+}
+
 const awsAuthSlice = createSlice({
   name: 'awsAuth',
   initialState,
@@ -71,19 +87,21 @@ const awsAuthSlice = createSlice({
       localStorage.removeItem('tj.refreshToken')
       localStorage.removeItem('tj.expiresAt')
     },
-    bootstrapFromStorage(state) {
-      if (BACKEND_MODE !== 'aws') return
+  bootstrapFromStorage(state) {
       const idToken = localStorage.getItem('tj.idToken')
       const refreshToken = localStorage.getItem('tj.refreshToken')
       const expiresAtStr = localStorage.getItem('tj.expiresAt')
-      if (!idToken || !refreshToken || !expiresAtStr) return
+      if (!idToken || !refreshToken || !expiresAtStr) { state.bootstrapped = true; return }
       const claims = decodeJwt(idToken)
       state.idToken = idToken
       state.refreshToken = refreshToken
       state.accessToken = null
       state.expiresAt = Number(expiresAtStr)
       if (claims?.sub) state.user = { sub: claims.sub, email: claims.email as string | undefined }
+      state.bootstrapped = true
     },
+  markBootstrapped(state) { state.bootstrapped = true },
+  markRefreshScheduled(state) { state.refreshScheduled = true },
   },
   extraReducers: (builder) => {
     builder
@@ -99,6 +117,10 @@ const awsAuthSlice = createSlice({
         localStorage.setItem('tj.idToken', s.idToken!)
         localStorage.setItem('tj.refreshToken', s.refreshToken!)
         localStorage.setItem('tj.expiresAt', String(s.expiresAt))
+  s.refreshScheduled = false
+  s.bootstrapped = true
+  // schedule
+  scheduleRefresh((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s) // fallback if store attached globally
       })
       .addCase(awsLogin.rejected, (s, a) => { s.loading = false; s.error = a.error.message || 'Login failed' })
       .addCase(awsRefresh.fulfilled, (s, a) => {
@@ -110,9 +132,11 @@ const awsAuthSlice = createSlice({
         if (claims?.sub) s.user = { sub: claims.sub, email: claims.email as string | undefined }
         localStorage.setItem('tj.idToken', s.idToken!)
         localStorage.setItem('tj.expiresAt', String(s.expiresAt))
+  s.refreshScheduled = false
+  scheduleRefresh((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s)
       })
   }
 })
 
-export const { awsLogout, bootstrapFromStorage } = awsAuthSlice.actions
+export const { awsLogout, bootstrapFromStorage, markRefreshScheduled, markBootstrapped } = awsAuthSlice.actions
 export default awsAuthSlice.reducer

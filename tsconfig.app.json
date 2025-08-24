@@ -7,7 +7,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "lib/*": ["./lib/*"],
+      "registry/*": ["./src/registry/*"]
     },
 
     /* Bundler mode */
@@ -33,5 +35,8 @@
     "sourceMap": true,
     "inlineSources": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/Trades" // legacy firebase-era trades module fully deprecated
+  ]
 }

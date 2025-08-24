@@ -5,15 +5,13 @@ import { ScrollArea } from "../../ui/scroll-area";
 import { ArrowDownIcon, ArrowUpIcon, TrendingUpIcon } from "lucide-react";
 import { useSelector } from "react-redux";
 import { selectRecentTrades } from "@/app/selectors";
-import { TradeDetails } from "@/app/types"; // Corrected import path
+import { ApiTrade } from "@/app/types";
 
-interface TradeItemProps {
-  trade: TradeDetails;
-}
+interface TradeItemProps { trade: ApiTrade }
 
 const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
-  const isProfitable = trade.pnl && trade.pnl > 0;
-  const isLoss = trade.pnl && trade.pnl < 0;
+  const isProfitable = (trade.pnl ?? 0) > 0;
+  const isLoss = (trade.pnl ?? 0) < 0;
 
   return (
     <div className="flex items-center p-4 rounded-lg transition-colors hover:bg-muted/50">
@@ -32,11 +30,11 @@ const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
           </p>
           <Badge
             variant={
-              trade.side.toLowerCase() === "buy" ? "default" : "secondary"
+              trade.side === "BUY" ? "default" : "secondary"
             }
             className="ml-2 capitalize"
           >
-            {trade.side.toLowerCase()}
+            {trade.side}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -53,7 +51,7 @@ const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
         <div className="flex items-center gap-1 justify-end">
           {isProfitable && <ArrowUpIcon className="w-4 h-4" />}
           {isLoss && <ArrowDownIcon className="w-4 h-4" />}
-          {trade.pnl ? `$${Math.abs(trade.pnl).toFixed(2)}` : "N/A"}
+          {typeof trade.pnl === 'number' ? `$${Math.abs(trade.pnl).toFixed(2)}` : "N/A"}
         </div>
       </div>
     </div>
@@ -61,7 +59,7 @@ const TradeItem: React.FC<TradeItemProps> = ({ trade }) => {
 };
 
 export function RecentTrades() {
-  const trades = useSelector(selectRecentTrades);
+  const trades = useSelector<any, ApiTrade[]>(selectRecentTrades as any);
   return (
     <ScrollArea className="h-[400px] pr-4">
       <div className="space-y-1">
