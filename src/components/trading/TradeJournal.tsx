@@ -29,19 +29,54 @@ import { toast } from 'sonner'
 
 // Removed legacy TradeDetails dependency; using lightweight ImportedTrade placeholder until bulk AWS import implemented.
 interface ImportedTrade {
-  tradeId?: string
-  symbol: string
-  side: string
-  openDate: string
-  closeDate: string
-  entry: number
-  exit: number
-  qty: number
-  pnl: number
-  status: string
-  selected?: boolean
-  idempotencyKey?: string
+  tradeId?: string;
+  symbol: string;
+  side: string;
+  openDate: string;
+  closeDate: string;
+  entry: number;
+  exit: number;
+  qty: number;
+  pnl: number;
+  status: string;
+  // Extended fields
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  commission?: number | null;
+  fees?: number | null;
+  riskAmount?: number | null;
+  setupType?: string | null;
+  timeframe?: string | null;
+  marketCondition?: string | null;
+  tradingSession?: string | null;
+  tradeGrade?: string | null;
+  confidence?: number | null;
+  setupQuality?: number | null;
+  execution?: number | null;
+  emotionalState?: string | null;
+  psychology?: {
+    greed?: boolean;
+    fear?: boolean;
+    fomo?: boolean;
+    revenge?: boolean;
+    overconfidence?: boolean;
+    patience?: boolean;
+  };
+  preTradeNotes?: string | null;
+  postTradeNotes?: string | null;
+  mistakes?: string[];
+  lessons?: string[];
+  newsEvents?: string[];
+  economicEvents?: string[];
+  tags?: string[];
+  selected?: boolean;
+  idempotencyKey?: string;
 }
+import { Textarea } from '@/ui/textarea';
+import { Switch } from '@/ui/switch';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/ui/drawer';
+import { Badge } from '@/ui/badge';
+import { Separator } from '@/ui/separator';
 const parseDateString = (dateString: string): Date => {
   let format: string = "yyyy-MM-dd HH:mm:ss";
   const date = parse(dateString, format, new Date());
@@ -95,6 +130,8 @@ export function TradeImportDialog() {
   const [isSaving, setIsSaving] = useState(false); // For saving trades
   const [isSaved, setIsSaved] = useState(false); // Track successful save
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [detailTrade, setDetailTrade] = useState<ImportedTrade | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dispatch = useDispatch<AppDispatch>()
@@ -169,6 +206,28 @@ export function TradeImportDialog() {
               qty: t.quantity || t.qty || 0,
               pnl: round2(t.pnl ?? 0),
               status: t.status || ( (t.pnl??0) > 0 ? 'TP':'SL'),
+              stopLoss: null,
+              takeProfit: null,
+              commission: null,
+              fees: null,
+              riskAmount: null,
+              setupType: null,
+              timeframe: null,
+              marketCondition: null,
+              tradingSession: null,
+              tradeGrade: null,
+              confidence: null,
+              setupQuality: null,
+              execution: null,
+              emotionalState: null,
+              psychology: { greed:false,fear:false,fomo:false,revenge:false,overconfidence:false,patience:false },
+              preTradeNotes: null,
+              postTradeNotes: null,
+              mistakes: [],
+              lessons: [],
+              newsEvents: [],
+              economicEvents: [],
+              tags: [],
               selected: false,
               idempotencyKey: undefined
             }))
@@ -297,7 +356,7 @@ export function TradeImportDialog() {
     setIsSaving(true)
     toast.loading(`Saving ${valid.length} trade(s)...`, { id:'save-trades' })
     // Build bulk payload
-    const bulkItems = valid.map(t => ({
+  const bulkItems = valid.map(t => ({
       // Core required
       symbol: t.symbol,
       side: t.side as any,
@@ -311,39 +370,32 @@ export function TradeImportDialog() {
   // Explicit PnL fields (backend previously derived; now passing actual extracted value)
   pnl: Number.isFinite(t.pnl) ? round2(t.pnl) : null,
   netPnl: Number.isFinite(t.pnl) ? round2(t.pnl) : null,
-      stopLoss: null,
-      takeProfit: null,
-      commission: null,
-      fees: null,
-      riskAmount: null,
-      setupType: null,
-      timeframe: null,
-      marketCondition: null,
-      tradingSession: null,
-      tradeGrade: null,
-      confidence: null,
-      setupQuality: null,
-      execution: null,
-      emotionalState: null,
-      psychology: {
-        greed: false,
-        fear: false,
-        fomo: false,
-        revenge: false,
-        overconfidence: false,
-        patience: false,
-      },
-      preTradeNotes: null,
-      postTradeNotes: null,
-      mistakes: [],
-      lessons: [],
-      newsEvents: [],
-      economicEvents: [],
+      stopLoss: t.stopLoss ?? null,
+      takeProfit: t.takeProfit ?? null,
+      commission: t.commission ?? null,
+      fees: t.fees ?? null,
+      riskAmount: t.riskAmount ?? null,
+      setupType: t.setupType ?? null,
+      timeframe: t.timeframe ?? null,
+      marketCondition: t.marketCondition ?? null,
+      tradingSession: t.tradingSession ?? null,
+      tradeGrade: t.tradeGrade ?? null,
+      confidence: t.confidence ?? null,
+      setupQuality: t.setupQuality ?? null,
+      execution: t.execution ?? null,
+      emotionalState: t.emotionalState ?? null,
+      psychology: { ...(t.psychology||{}) },
+      preTradeNotes: t.preTradeNotes ?? null,
+      postTradeNotes: t.postTradeNotes ?? null,
+      mistakes: t.mistakes ?? [],
+      lessons: t.lessons ?? [],
+      newsEvents: t.newsEvents ?? [],
+      economicEvents: t.economicEvents ?? [],
+      tags: t.tags ?? [],
       status: 'CLOSED',
-      tags: [],
       images: [],
     }))
-  let created = 0, skipped: any[] = [], apiErrors: any[] = [], errorMsg: string | undefined
+    let created = 0, skipped: any[] = [], apiErrors: any[] = [], errorMsg: string | undefined
     try {
       const envelope: any = await dispatch(createTradesBulk(bulkItems as any)).unwrap()
       created = envelope?.data?.created || 0
@@ -628,6 +680,7 @@ export function TradeImportDialog() {
                       <TableHead className="w-[100px] text-center">Quantity</TableHead>
                       <TableHead className="w-[100px] text-center">P&L</TableHead>
                       <TableHead className="w-[100px] text-center">Status</TableHead>
+                      <TableHead className="w-[90px] text-center">Details</TableHead>
                     </TableRow>
                   </TableHeader>
                 </Table>
@@ -838,6 +891,11 @@ export function TradeImportDialog() {
                             >{trade.status}</span>
                           )}
                         </TableCell>
+                        <TableCell className="w-[90px] text-center">
+                          <Button variant="outline" size="sm" onClick={(e)=>{ e.stopPropagation(); setDetailTrade(trade); setIsDetailOpen(true); }}>
+                            Edit
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -870,7 +928,150 @@ export function TradeImportDialog() {
           )}
         </div>
       </DialogContent>
+      {/* Detail Drawer */}
+      <Drawer open={isDetailOpen} onOpenChange={(o)=>{ if(!o) { setIsDetailOpen(false); setDetailTrade(null);} }}>
+        <DrawerContent className="max-h-[92vh]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="text-base">Trade Details</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-4 overflow-y-auto space-y-6">
+            {detailTrade && (
+              <>
+                <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {['symbol','side','openDate','closeDate','entry','exit','qty','pnl','status'].map(f => (
+                    <div key={f} className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
+                      <Input
+                        type={['entry','exit','qty','pnl'].includes(f)?'number':'text'}
+                        value={(detailTrade as any)[f] ?? ''}
+                        onChange={e=>{
+                          const val = ['entry','exit','qty','pnl'].includes(f)? parseFloat(e.target.value): e.target.value;
+                          setDetailTrade(dt=> dt? { ...dt, [f]: val }: dt);
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                  {['stopLoss','takeProfit','commission','fees','riskAmount','confidence','setupQuality','execution'].map(f => (
+                    <div key={f} className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
+                      <Input
+                        type="number"
+                        value={(detailTrade as any)[f] ?? ''}
+                        onChange={e=>{
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          setDetailTrade(dt=> dt? { ...dt, [f]: val }: dt);
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                  {['setupType','timeframe','marketCondition','tradingSession','tradeGrade','emotionalState'].map(f => (
+                    <div key={f} className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
+                      <Input
+                        value={(detailTrade as any)[f] ?? ''}
+                        onChange={e=> setDetailTrade(dt=> dt? { ...dt, [f]: e.target.value || null }: dt)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                </section>
+                <Separator />
+                <section className="space-y-3">
+                  <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Psychology Flags</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {['greed','fear','fomo','revenge','overconfidence','patience'].map(flag => (
+                      <label key={flag} className="flex items-center gap-2 text-xs">
+                        <Switch
+                          checked={!!detailTrade.psychology?.[flag as keyof typeof detailTrade.psychology]}
+                          onCheckedChange={(checked)=> setDetailTrade(dt=> dt? { ...dt, psychology: { ...(dt.psychology||{}), [flag]: checked } }: dt)}
+                        />
+                        <span className="capitalize">{flag}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+                <Separator />
+                <section className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase">Pre Trade Notes</label>
+                    <Textarea value={detailTrade.preTradeNotes || ''} onChange={e=> setDetailTrade(dt=> dt? { ...dt, preTradeNotes: e.target.value || null }: dt)} className="min-h-[80px] text-sm"/>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase">Post Trade Notes</label>
+                    <Textarea value={detailTrade.postTradeNotes || ''} onChange={e=> setDetailTrade(dt=> dt? { ...dt, postTradeNotes: e.target.value || null }: dt)} className="min-h-[80px] text-sm"/>
+                  </div>
+                </section>
+                <Separator />
+                <section className="grid md:grid-cols-2 gap-6">
+                  {['mistakes','lessons','newsEvents','economicEvents','tags'].map(listName => (
+                    <ArrayEditor
+                      key={listName}
+                      label={listName}
+                      values={(detailTrade as any)[listName] || []}
+                      onChange={(vals)=> setDetailTrade(dt=> dt? { ...dt, [listName]: vals }: dt)}
+                    />
+                  ))}
+                </section>
+              </>
+            )}
+          </div>
+          <DrawerFooter className="pt-2">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={()=>{ setIsDetailOpen(false); setDetailTrade(null); }}>Cancel</Button>
+              <Button
+                onClick={()=>{
+                  if(!detailTrade) return;
+                  setTrades(ts => ts.map(t=> t.tradeId===detailTrade.tradeId ? attachIdempotency({ ...t, ...detailTrade }) : t));
+                  setIsDirty(true);
+                  setIsSaved(false);
+                  setIsDetailOpen(false);
+                }}
+              >Apply</Button>
+            </div>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </Dialog>
+  );
+}
+
+// Lightweight array editor component for chip-style list inputs
+function ArrayEditor({ label, values, onChange }: { label: string; values: string[]; onChange: (vals:string[])=>void }) {
+  const [input, setInput] = useState('');
+  const add = () => {
+    const trimmed = input.trim();
+    if(!trimmed) return;
+    if(values.includes(trimmed)) { setInput(''); return; }
+    onChange([...values, trimmed]);
+    setInput('');
+  };
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-muted-foreground uppercase flex items-center justify-between">
+        <span>{label}</span>
+        {values.length>0 && <span className="text-[10px] font-normal">{values.length}</span>}
+      </label>
+      <div className="flex flex-wrap gap-1">
+        {values.map(v => (
+          <Badge key={v} variant="secondary" className="text-[10px] px-2 py-0.5 flex items-center gap-1">
+            {v}
+            <button type="button" className="ml-1 text-[10px] hover:text-destructive" onClick={()=> onChange(values.filter(x=>x!==v))}>×</button>
+          </Badge>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          placeholder={`Add ${label}`}
+          value={input}
+          onChange={e=> setInput(e.target.value)}
+          onKeyDown={e=> { if(e.key==='Enter'){ e.preventDefault(); add(); }}}
+          className="h-8 text-sm"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}>Add</Button>
+      </div>
+    </div>
   );
 }
 

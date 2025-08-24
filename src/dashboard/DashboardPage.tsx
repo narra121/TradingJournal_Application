@@ -18,7 +18,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState, useRef } from "react";
 import { AppDispatch } from "@/app/store";
 import { TradeJournalDialog } from "@/components/TradeJournalDialog";
-import { setIsEditOpen } from "@/app/uiSlice";
+import { setIsEditOpen, setIsDetailsOpen } from "@/app/uiSlice";
 import { TradeImportDialog } from "@/components/trading/TradeJournal";
 import { DailyTradesDialog } from "@/components/trading/DailyTradesDialog";
 import { format, parseISO } from "date-fns";
@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const trades: ApiTrade[] = useSelector((s:any)=>s.AwsTrades.items);
   const dispatch = useDispatch<AppDispatch>();
   const isJournalOpen = useSelector((s:any)=> s.UI.isEditOpen);
+  const isDetailsOpen = useSelector((s:any)=> s.UI.isDetailsOpen);
   const selectedTradeId = useSelector((s:any)=> s.UI.selectedItem);
   const selectedTrade = trades.find(t=> t.tradeId === selectedTradeId) || null;
 
@@ -180,6 +181,13 @@ export default function DashboardPage() {
           <TabsContent value="trades">
             <AdvancedTradesTable />
             <TradeJournalDialog isOpen={isJournalOpen && !!selectedTrade} onClose={()=>dispatch(setIsEditOpen(false))} trade={selectedTrade} />
+            <DailyTradesDialog 
+              isOpen={isDetailsOpen && !!selectedTrade} 
+              onClose={()=>dispatch(setIsDetailsOpen(false))} 
+              selectedDate={selectedTrade ? new Date(selectedTrade.openDate) : null} 
+              trades={selectedTrade ? [selectedTrade] : []} 
+              showTradesList={false} 
+            />
           </TabsContent>
           <TabsContent value="calender">
             <CalendarView data={trades} onSelectDate={handleSelectDate} />

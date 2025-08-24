@@ -14,9 +14,9 @@ export interface AuthState {
 export interface ImageType {
   id: string;
   url: string;
-  timeframe: string;
-  description: string;
-  file?: File;
+  timeframe?: string; // optional timeframe per trade image
+  description?: string; // optional description
+  file?: File; // transient local file reference before upload
 }
 
 export interface UIState {

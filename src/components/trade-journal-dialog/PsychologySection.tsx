@@ -17,7 +17,9 @@ export interface PsychologyState {
   fear: boolean;
   overconfidence: boolean;
   patience: boolean;
+  lossRecovery?: boolean;
   emotionalState: string;
+  preNotes?: string;
   notes: string;
 }
 
@@ -82,6 +84,14 @@ export function PsychologySection({ psychology, onChange, emotionalStates }: Psy
           />
           <Label htmlFor="patience">Patience</Label>
         </div>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="lossRecovery"
+            checked={!!psychology.lossRecovery}
+            onCheckedChange={(checked) => onChange({ lossRecovery: !!checked })}
+          />
+            <Label htmlFor="lossRecovery">Loss Recovery</Label>
+        </div>
       </div>
       <div className="space-y-2">
         <Label>Emotional State</Label>
@@ -101,13 +111,23 @@ export function PsychologySection({ psychology, onChange, emotionalStates }: Psy
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label>Trade Notes</Label>
-        <Textarea
-          placeholder="Enter your trade notes here..."
-          value={psychology.notes}
-          onChange={(e) => onChange({ notes: e.target.value })}
-        />
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Pre Trade Notes</Label>
+          <Textarea
+            placeholder="Enter pre trade notes..."
+            value={psychology.preNotes || ''}
+            onChange={(e) => onChange({ preNotes: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Post Trade Notes</Label>
+          <Textarea
+            placeholder="Enter post trade notes..."
+            value={psychology.notes}
+            onChange={(e) => onChange({ notes: e.target.value })}
+          />
+        </div>
       </div>
     </div>
   );

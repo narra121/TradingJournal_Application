@@ -20,7 +20,6 @@ import { AnalysisSection, AnalysisState } from "./trade-journal-dialog/AnalysisS
 import { ImageDocumentationSection } from "./trade-journal-dialog/ImageDocumentationSection";
 import { Input } from '@/ui/input'
 import { Label } from '@/ui/label'
-import { Textarea } from '@/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/select'
 import { Slider } from '@/ui/slider'
 import { Badge } from '@/ui/badge'
@@ -36,7 +35,7 @@ interface TradeJournalDialogProps {
 export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialogProps) {
   const dispatch: AppDispatch = useDispatch();
   const [images, setImages] = useState<ImageType[]>([]);
-  const [psychology, setPsychology] = useState<PsychologyState>({ greed: false, fomo: false, revenge: false, fear:false, overconfidence:false, patience:false, emotionalState: '', notes: '' });
+  const [psychology, setPsychology] = useState<PsychologyState>({ greed: false, fomo: false, revenge: false, fear:false, overconfidence:false, patience:false, emotionalState: '', preNotes: '', notes: '' });
   const [analysis, setAnalysis] = useState<AnalysisState>({ riskRewardRatio: null, setupType: '', mistakes: [] });
   const [metrics, setMetrics] = useState<MetricsState>({ riskAmount: null, marketCondition: '', tradingSession: '' });
 
@@ -93,7 +92,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   useEffect(() => {
     if (isOpen && tradeData) {
       // Build fresh snapshot only once per open or trade change
-      const newImages: ImageType[] = (tradeData.images || []).map(i => ({ id: i.id, url: i.url, timeframe: i.timeframe || '', description: i.description || '' }))
+  const newImages: ImageType[] = (tradeData.images || []).map(i => ({ id: i.id, url: i.url, timeframe: i.timeframe || '', description: i.description || '' }))
       const newPsychology: PsychologyState = {
         greed: !!tradeData.psychology?.greed,
         fomo: !!tradeData.psychology?.fomo,
@@ -102,6 +101,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         overconfidence: !!tradeData.psychology?.overconfidence,
         patience: !!tradeData.psychology?.patience,
         emotionalState: tradeData.emotionalState || '',
+        preNotes: tradeData.preTradeNotes || '',
         notes: tradeData.postTradeNotes || ''
       }
       const newAnalysis: AnalysisState = {
@@ -114,13 +114,20 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         marketCondition: tradeData.marketCondition || '',
         tradingSession: tradeData.tradingSession || ''
       }
-  const newCore = {
+      // Normalize date strings to YYYY-MM-DD if they include time
+      const fmtDate = (d?: string | null) => {
+        if(!d) return '';
+        if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+        const only = d.split('T')[0];
+        return only || '';
+      }
+      const newCore = {
         symbol: tradeData.symbol,
         side: tradeData.side,
         status: tradeData.status,
         quantity: tradeData.quantity,
-        openDate: tradeData.openDate || '',
-        closeDate: tradeData.closeDate || '',
+        openDate: fmtDate(tradeData.openDate),
+        closeDate: fmtDate(tradeData.closeDate || undefined),
         entryPrice: tradeData.entryPrice ?? '',
         exitPrice: tradeData.exitPrice ?? '',
         stopLoss: tradeData.stopLoss ?? '',
@@ -132,7 +139,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         confidence: tradeData.confidence ?? null,
         setupQuality: tradeData.setupQuality ?? null,
         execution: tradeData.execution ?? null,
-        preTradeNotes: tradeData.preTradeNotes || '',
+  preTradeNotes: tradeData.preTradeNotes || '',
       }
   // array lists
   setLessons(tradeData.lessons || [])
@@ -244,13 +251,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         confidence: core.confidence ?? null,
         setupQuality: core.setupQuality ?? null,
         execution: core.execution ?? null,
-        preTradeNotes: core.preTradeNotes || null,
+  preTradeNotes: psychology.preNotes || null,
         lessons,
         newsEvents,
         economicEvents,
         tags,
-        images: updatedImages.map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
-  psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
+  images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+  psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience, lossRecovery: psychology.lossRecovery },
         emotionalState: psychology.emotionalState || null,
         postTradeNotes: psychology.notes || null,
         riskRewardRatio: analysis.riskRewardRatio ?? null,
@@ -323,8 +330,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-[90vw] h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-4 pb-4 border-b sticky top-0 bg-background z-10 flex flex-row justify-between items-center">
-          <DialogTitle>Trade Journal</DialogTitle>
+        <DialogHeader className="px-5 py-2 border-b sticky top-0 bg-background z-10 flex flex-row justify-between items-center h-10 min-h-0">
+          <DialogTitle className="text-sm font-semibold leading-none">Trade Journal</DialogTitle>
           <DialogClose asChild>
             <Button variant="ghost" size="icon">
               <XIcon className="w-4 h-4" />
@@ -335,47 +342,35 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
           <div className="flex gap-6 p-6">
             <div className="w-1/4 space-y-6">
               <div className="space-y-4 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Core</h4>
-                <div className="space-y-2">
-                  <Label>Symbol</Label>
-                  <Input value={core.symbol} onChange={e=>{ setCore(c=>({ ...c, symbol: e.target.value.toUpperCase() })); setIsSaved(false) }} />
-                  <Label>Side</Label>
-                  <Select value={core.side} onValueChange={v=>{ setCore(c=>({ ...c, side: v as TradeSide })); setIsSaved(false) }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BUY">BUY</SelectItem>
-                      <SelectItem value="SELL">SELL</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Label>Status</Label>
-                  <Select value={core.status} onValueChange={v=>{ setCore(c=>({ ...c, status: v as TradeStatus })); setIsSaved(false) }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {['OPEN','CLOSED','PARTIAL','CANCELLED'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Label>Quantity</Label>
-                  <Input type="number" value={core.quantity} onChange={e=>{ setCore(c=>({ ...c, quantity: Number(e.target.value) })); setIsSaved(false) }} />
-                  <Label>Open Date</Label>
-                  <Input type="date" value={core.openDate} onChange={e=>{ setCore(c=>({ ...c, openDate: e.target.value })); setIsSaved(false) }} />
-                  <Label>Close Date</Label>
-                  <Input type="date" value={core.closeDate} onChange={e=>{ setCore(c=>({ ...c, closeDate: e.target.value })); setIsSaved(false) }} />
+                <h4 className="font-medium text-sm">Core (Read Only)</h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-1"><Label>Symbol</Label><div className="rounded bg-muted px-2 py-1 font-mono text-xs">{core.symbol}</div></div>
+                  <div className="space-y-1"><Label>Side</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.side}</div></div>
+                  <div className="space-y-1"><Label>Status</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.status}</div></div>
+                  <div className="space-y-1"><Label>Quantity</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.quantity}</div></div>
+                  <div className="space-y-1"><Label>Open Date</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.openDate || '-'}</div></div>
+                  <div className="space-y-1"><Label>Close Date</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.closeDate || '-'}</div></div>
                 </div>
               </div>
               <div className="space-y-2 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Prices</h4>
-                {['entryPrice','exitPrice','stopLoss','takeProfit','commission','fees'].map(field => (
-                  <div key={field} className="space-y-1">
-                    <Label className="capitalize">{field.replace(/([A-Z])/g,' $1')}</Label>
-                    <Input type="number" value={(core as any)[field] ?? ''} onChange={e=>{ const val = e.target.value; setCore(c=>({ ...c, [field]: val })); setIsSaved(false) }} />
-                  </div>
-                ))}
+                <h4 className="font-medium text-sm">Prices (Read Only)</h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  {['entryPrice','exitPrice','stopLoss','takeProfit','commission','fees'].map(field => (
+                    <div key={field} className="space-y-1">
+                      <Label className="capitalize">{field.replace(/([A-Z])/g,' $1')}</Label>
+                      <div className="rounded bg-muted px-2 py-1">{(core as any)[field] !== '' && (core as any)[field] !== null ? (core as any)[field] : '-'}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="space-y-3 p-4 border rounded-md">
                 <h4 className="font-medium text-sm">Performance Scores</h4>
                 {(['confidence','setupQuality','execution'] as const).map(f => (
                   <div key={f} className="space-y-1">
-                    <div className="flex justify-between text-xs"><Label className="capitalize">{f}</Label><span>{(core as any)[f] ?? 0}</span></div>
+                    <div className="flex justify-between text-xs">
+                      <Label className="capitalize">{f}</Label>
+                      <span>{(core as any)[f] ?? 0}</span>
+                    </div>
                     <Slider value={[(core as any)[f] ?? 0]} max={100} step={1} onValueChange={v=>{ setCore(c=>({ ...c, [f]: v[0] })); setIsSaved(false) }} />
                   </div>
                 ))}
@@ -386,19 +381,6 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
                     <SelectContent>{['A','B','C','D','F'].map(g=> <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div className="space-y-4 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Meta</h4>
-                <div className="space-y-2">
-                  <Label>Timeframe</Label>
-                  <Input value={core.timeframe || ''} onChange={e=>{ setCore(c=>({ ...c, timeframe: e.target.value })); setIsSaved(false) }} />
-                  <Label>Pre-Trade Notes</Label>
-                  <Textarea value={core.preTradeNotes} onChange={e=>{ setCore(c=>({ ...c, preTradeNotes: e.target.value })); setIsSaved(false) }} />
-                </div>
-                <ChipsInput label="Lessons" items={lessons} setItems={setLessons} placeholder="Add lesson and press Enter" setIsSaved={setIsSaved} />
-                <ChipsInput label="News Events" items={newsEvents} setItems={setNewsEvents} placeholder="Add news event" setIsSaved={setIsSaved} />
-                <ChipsInput label="Economic Events" items={economicEvents} setItems={setEconomicEvents} placeholder="Add economic event" setIsSaved={setIsSaved} />
-                <ChipsInput label="Tags" items={tags} setItems={setTags} placeholder="Add tag" setIsSaved={setIsSaved} />
               </div>
               <div className="space-y-2 p-4 border rounded-md">
                 <h4 className="font-medium text-sm">Derived (Read Only)</h4>
@@ -414,6 +396,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
               <PsychologySection psychology={psychology} onChange={handlePsychologyChange} emotionalStates={emotionalStates} />
               <MetricsSection metrics={metrics} onChange={handleMetricsChange} marketConditions={marketConditions} sessions={sessions} />
               <AnalysisSection analysis={analysis} onChange={handleAnalysisChange} setupTypes={setupTypes} tradeMistakes={tradeMistakes} />
+              <div className="space-y-4 p-4 border rounded-md">
+                <h4 className="font-medium text-sm">Meta</h4>
+                <ChipsInput label="Lessons" items={lessons} setItems={setLessons} placeholder="Add lesson and press Enter" setIsSaved={setIsSaved} />
+                <ChipsInput label="News Events" items={newsEvents} setItems={setNewsEvents} placeholder="Add news event" setIsSaved={setIsSaved} />
+                <ChipsInput label="Economic Events" items={economicEvents} setItems={setEconomicEvents} placeholder="Add economic event" setIsSaved={setIsSaved} />
+                <ChipsInput label="Tags" items={tags} setItems={setTags} placeholder="Add tag" setIsSaved={setIsSaved} />
+              </div>
               <ImageDocumentationSection
                 images={images}
                 setImages={setImages}

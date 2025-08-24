@@ -61,6 +61,16 @@ export function AnalysisSection({ analysis, onChange, setupTypes, tradeMistakes 
       </div>
       <div className="space-y-2">
         <Label>Trade Mistakes</Label>
+        <div className="flex items-center space-x-2 mb-2">
+          <Checkbox
+            id="no-mistakes"
+            checked={analysis.mistakes.length === 0}
+            onCheckedChange={(c) => {
+              if (c) onChange({ mistakes: [] })
+            }}
+          />
+          <Label htmlFor="no-mistakes" className="text-sm">No Mistakes</Label>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {tradeMistakes.map((mistake) => {
             const key = mistake.toLowerCase()
