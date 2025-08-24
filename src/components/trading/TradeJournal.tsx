@@ -251,7 +251,15 @@ export function TradeImportDialog() {
               selected: false,
               idempotencyKey: undefined
             }))
-            setTrades(importedTrades)
+            // Ensure all numeric fields are rounded to two decimals uniformly
+            const roundedTrades = importedTrades.map(tr => ({
+              ...tr,
+              entry: round2(tr.entry),
+              exit: round2(tr.exit),
+              pnl: round2(tr.pnl),
+              qty: tr.qty // qty is integer, leave as-is
+            }))
+            setTrades(roundedTrades)
             if(importedTrades.length>0) setIsDirty(true)
             if(importedTrades.length===0) toast.info('No trades detected in image')
     toast.success(`${importedTrades.length} trade(s) extracted`, { id: 'extract-trades-progress' })
@@ -534,7 +542,12 @@ export function TradeImportDialog() {
       selected: false,
     };
 
-    const mergedTrade = attachIdempotency(mergedTradeBase)
+    const mergedTrade = attachIdempotency({
+      ...mergedTradeBase,
+      entry: round2(mergedTradeBase.entry),
+      exit: round2(mergedTradeBase.exit),
+      pnl: round2(mergedTradeBase.pnl)
+    })
 
     setTrades((prevTrades) => [
       ...prevTrades.filter((trade) => !trade.selected),
