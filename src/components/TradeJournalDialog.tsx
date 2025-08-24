@@ -25,6 +25,7 @@ import { Slider } from '@/ui/slider'
 import { Badge } from '@/ui/badge'
 import { v4 as uuidv4 } from "uuid";
 import { updateTrade } from '@/app/awsTradesSlice'
+import { toast } from 'sonner'
 
 interface TradeJournalDialogProps {
   isOpen: boolean;
@@ -207,8 +208,9 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   const handleSave = useCallback(async () => {
     if (!tradeData || !isDirty) return;
 
-    setIsSaving(true);
-    setIsSaved(false);
+  setIsSaving(true);
+  setIsSaved(false);
+  toast.loading('Updating trade...', { id: 'journal-update' })
 
     try {
       const imagesToUpload = images.filter((image) => image.file);
@@ -267,7 +269,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         marketCondition: metrics.marketCondition || null,
         tradingSession: metrics.tradingSession || null,
       }
-      await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes }))
+  await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes })).unwrap()
 
   setInitialPsychology(psychology);
       setInitialAnalysis(analysis);
@@ -279,10 +281,12 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
       setInitialEconomicEvents(economicEvents);
       setInitialTags(tags);
 
-      setIsSaved(true);
+  setIsSaved(true);
+  toast.success('Trade updated', { id: 'journal-update' })
     } catch (error) {
       console.error("Error saving trade:", error);
       setIsSaved(false);
+  toast.error((error as any)?.message || 'Update failed', { id: 'journal-update' })
     } finally {
       setIsSaving(false);
     }

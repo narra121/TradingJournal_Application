@@ -24,6 +24,7 @@ import { DailyTradesDialog } from "@/components/trading/DailyTradesDialog";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/ui/button";
 import { RotateCw } from "lucide-react";
+import { toast } from 'sonner'
 
 export default function DashboardPage() {
   const [isDailyTradesDialogOpen, setIsDailyTradesDialogOpen] = useState(false);
@@ -40,15 +41,14 @@ export default function DashboardPage() {
   const [range, setRange] = useState<{from?: Date; to?: Date}>({});
   const initialFetchRef = useRef(false);
 
-  const buildParams = () => {
-    const params: any = {};
-    if(range.from) params.startDate = range.from.toISOString();
-    if(range.to) params.endDate = range.to.toISOString();
-    return params;
-  };
-  const refresh = () => {
-    const params = buildParams();
-    dispatch(listTrades(Object.keys(params).length ? params : undefined));
+  const refresh = async () => {
+    toast.loading('Refreshing trades...', { id: 'refresh-trades' });
+    try {
+      await dispatch(listTrades(undefined) as any).unwrap(); // Ignore date filters for now
+      toast.success('Trades refreshed', { id: 'refresh-trades' });
+    } catch (e:any) {
+      toast.error(e.message || 'Refresh failed', { id: 'refresh-trades' });
+    }
   };
 
   // Initial fetch
@@ -113,7 +113,6 @@ export default function DashboardPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="trades">Trades</TabsTrigger>
             <TabsTrigger value="calender">Calender</TabsTrigger>
-            <TabsTrigger value="notifications" disabled>Notifications</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

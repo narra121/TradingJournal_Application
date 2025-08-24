@@ -12,9 +12,11 @@ import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/select'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/ui/dropdown-menu'
-import { ChevronDown, ChevronsUpDown, ArrowUp, ArrowDown, Trash2, BookOpen, Eye, Check, X, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ArrowUp, ArrowDown, Trash2, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Popover, PopoverTrigger, PopoverContent } from '@/ui/popover'
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/ui/alert-dialog'
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/ui/tooltip'
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/ui/command'
 
 interface Column<ApiTrade> { key: keyof ApiTrade | string; label: string; width?: string }
@@ -215,7 +217,8 @@ export const AdvancedTradesTable: React.FC = () => {
           <Input placeholder='Max PnL' value={filters.maxPnl} onChange={e=>{ setPage(1); setFilters(f=>({...f, maxPnl:e.target.value})) }} />
           <Button variant='secondary' size='sm' onClick={()=>{ setFilters({ symbol:'', side:'', status:'', minPnl:'', maxPnl:'' }); setPage(1) }}>Reset</Button>
         </div>
-        <div className='rounded-md border'>
+  <div className='rounded-md border'>
+  <TooltipProvider delayDuration={600}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -243,7 +246,13 @@ export const AdvancedTradesTable: React.FC = () => {
             </TableHeader>
             <TableBody>
               {paged.map(t=> (
-                <TableRow key={t.tradeId} className='hover:bg-muted/50'>
+                <Tooltip key={t.tradeId}>
+                  <TooltipTrigger asChild>
+                    <TableRow
+                      className='hover:bg-muted/50'
+                      tabIndex={0}
+                      onDoubleClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsDetailsOpen(true)) }}
+                    >
                   <TableCell className='w-8'>
                     <Checkbox checked={selected.has(t.tradeId)} onCheckedChange={()=> toggleOne(t.tradeId)} aria-label='Select row'/>
                   </TableCell>
@@ -258,29 +267,66 @@ export const AdvancedTradesTable: React.FC = () => {
                   })}
                   <TableCell className='text-right whitespace-nowrap'>
                     <div className='inline-flex gap-1'>
-                      <Button variant='ghost' size='icon' title='Journal' onClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsEditOpen(true)) }}><BookOpen className='w-4 h-4'/></Button>
-                      <Button variant='ghost' size='icon' title='View' onClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsDetailsOpen(true)) }}><Eye className='w-4 h-4'/></Button>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        title='Delete'
-                        disabled={deletingIds.has(t.tradeId)}
-                        onClick={()=>{
-                          if(deletingIds.has(t.tradeId)) return
-                          setDeletingIds(s=> new Set(s).add(t.tradeId))
-                          toast.promise(
-                            dispatch(deleteTrade(t.tradeId) as any).unwrap()
-                              .then(()=> { setSelected(s=> { if(!s.has(t.tradeId)) return s; const n=new Set(s); n.delete(t.tradeId); return n }) })
-                              .finally(()=> setDeletingIds(s=> { const n=new Set(s); n.delete(t.tradeId); return n })),
-                            { loading: 'Deleting...', success: 'Deleted', error: (e)=> e?.message || 'Delete failed' }
-                          )
-                        }}
-                      >
-                        {deletingIds.has(t.tradeId) ? <Loader2 className='w-4 h-4 animate-spin text-red-500'/> : <Trash2 className='w-4 h-4 text-red-600'/>}
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            aria-label='Edit Journal'
+                            onClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsEditOpen(true)) }}
+                          >
+                            <Pencil className='w-4 h-4 text-slate-500'/>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit</TooltipContent>
+                      </Tooltip>
+                      {/* Removed separate view icon per request for simpler two-icon actions */}
+                      <AlertDialog>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                aria-label='Delete'
+                                disabled={deletingIds.has(t.tradeId)}
+                              >
+                                {deletingIds.has(t.tradeId) ? <Loader2 className='w-4 h-4 animate-spin text-slate-500'/> : <Trash2 className='w-4 h-4 text-slate-500'/>}
+                              </Button>
+                            </AlertDialogTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                        <AlertDialogContent className='sm:max-w-[360px]'>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className='text-sm'>Delete Trade?</AlertDialogTitle>
+                            <AlertDialogDescription className='text-xs'>This action cannot be undone. The trade will be permanently removed.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className='text-xs h-8 px-3'>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className='bg-red-600 hover:bg-red-700 text-xs h-8 px-3'
+                              onClick={(e)=>{
+                                e.preventDefault()
+                                if(deletingIds.has(t.tradeId)) return
+                                setDeletingIds(s=> new Set(s).add(t.tradeId))
+                                toast.promise(
+                                  dispatch(deleteTrade(t.tradeId) as any).unwrap()
+                                    .then(()=> { setSelected(s=> { if(!s.has(t.tradeId)) return s; const n=new Set(s); n.delete(t.tradeId); return n }) })
+                                    .finally(()=> setDeletingIds(s=> { const n=new Set(s); n.delete(t.tradeId); return n })),
+                                  { loading: 'Deleting...', success: 'Deleted', error: (err)=> err?.message || 'Delete failed' }
+                                )
+                              }}
+                            >Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
-                </TableRow>
+                    </TableRow>
+                  </TooltipTrigger>
+                  <TooltipContent>Double‑click row to view</TooltipContent>
+                </Tooltip>
               ))}
               {sorted.length===0 && (
                 <TableRow>
@@ -289,6 +335,7 @@ export const AdvancedTradesTable: React.FC = () => {
               )}
             </TableBody>
           </Table>
+          </TooltipProvider>
         </div>
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs'>
           <div>Page {page} / {totalPages}</div>

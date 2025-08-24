@@ -5,6 +5,7 @@ import { awsLogout } from '@/app/awsAuthSlice'
 import { Avatar, AvatarFallback, AvatarImage } from '@/ui/avatar'
 import { Button } from '@/ui/button'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/ui/dialog'
+import { X } from 'lucide-react'
 import { Input } from '@/ui/input'
 import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
@@ -51,13 +52,15 @@ export function UserNav() {
               <h3 className="text-lg font-semibold">Profile Info</h3>
               <p className="text-sm text-muted-foreground">Update your basic account information.</p>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Environment:</span>
-              <Badge variant={apiStage==='prod' ? 'default':'secondary'} className={cn(apiStage==='dev' && 'bg-amber-500/80 text-black', apiStage==='custom' && 'bg-blue-500/80')}>
-                {apiStage.toUpperCase()}
-              </Badge>
-              <span className="truncate max-w-[260px] font-mono text-xs" title={API_BASE_URL}>{API_BASE_URL}</span>
-            </div>
+            {apiStage !== 'prod' && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Environment:</span>
+                <Badge variant={apiStage==='prod' ? 'default':'secondary'} className={cn(apiStage==='dev' && 'bg-amber-500/80 text-black', apiStage==='custom' && 'bg-blue-500/80')}>
+                  {apiStage.toUpperCase()}
+                </Badge>
+                <span className="truncate max-w-[260px] font-mono text-xs" title={API_BASE_URL}>{API_BASE_URL}</span>
+              </div>
+            )}
             <div className="grid gap-4 max-w-md">
               <div className="grid gap-2">
                 <Label htmlFor="displayName">Display Name</Label>
@@ -135,7 +138,7 @@ export function UserNav() {
           </Avatar>
         </Button>
       </DialogTrigger>
-      <DialogContent className="p-0 max-w-[80vw] w-[80vw] h-[80vh]">
+  <DialogContent className="p-0 max-w-[80vw] w-[80vw] h-[80vh]">
         <div className="flex h-full">
           {/* Left Nav 20% */}
           <div className="w-1/5 min-w-[180px] border-r bg-muted/40 flex flex-col">
@@ -167,7 +170,7 @@ export function UserNav() {
           <div className="flex-1 overflow-auto p-6">{renderPanel()}</div>
         </div>
         <DialogClose asChild>
-          <Button size="sm" variant="ghost" className="absolute top-2 right-2">Close</Button>
+          <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-8 w-8" aria-label="Close profile dialog"><X className="h-4 w-4" /></Button>
         </DialogClose>
       </DialogContent>
     </Dialog>

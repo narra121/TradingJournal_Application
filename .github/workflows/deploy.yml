@@ -3,31 +3,47 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main # Change this to your main branch name (e.g., 'master')
+      - main
+      - feat/aws-migration # temporary: deploy from feature branch too
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # required for gh-pages push
 
 jobs:
   deploy:
+    name: Build & Publish
     runs-on: ubuntu-latest
-
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: true
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20" # Or your desired Node.js version
+          node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: npm i --legacy-peer-deps
+        run: npm ci || npm i --legacy-peer-deps
 
-      - name: Build project
-        run: npm run build # Or `yarn build`
+      - name: Build (Vite)
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Verify dist folder
+        run: ls -al dist || (echo "dist folder missing" && exit 1)
 
       - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/aws-migration'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist # For create-react-app. Use ./dist for Vite, etc.
-          # Optional: If you're using a custom domain, uncomment the line below:
+          publish_dir: dist
           # cname: your-custom-domain.com

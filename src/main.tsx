@@ -11,7 +11,6 @@ import useAuthBootstrap from '@/hooks/useAuthBootstrap'
 import { Toaster } from '@/ui/sonner'
 import DashboardPage from '@/dashboard/DashboardPage'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
-import { LocaleToggle } from '@/i18n/LocaleToggle'
 // import { AuthDebug } from '@/components/AuthDebug'
 
 const AppRoot = () => {
@@ -19,7 +18,7 @@ const AppRoot = () => {
   return (
     <div className="relative min-h-svh">
     <HashRouter>
-      <div className="absolute top-2 right-2 z-50 flex gap-2"><LocaleToggle /></div>
+  {/* Locale toggle removed; app fixed to English */}
       <Routes>
         <Route element={<PublicOnlyRoute />}> 
           <Route path="/login" element={<Page />} />

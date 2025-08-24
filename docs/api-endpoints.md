@@ -1,6 +1,20 @@
 # Trading Journal API – Endpoint Reference
 
-Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com/v1` (stack output `ApiBaseUrl`).
+Base URL (prod): `https://xlft531a6e.execute-api.us-east-1.amazonaws.com/prod/v1`
+
+Development Base URL example: `https://ok0cbhdbf3.execute-api.us-east-1.amazonaws.com/dev/v1`
+
+Environment Variables:
+
+```
+# .env.development
+VITE_API_BASE_URL=https://ok0cbhdbf3.execute-api.us-east-1.amazonaws.com/dev/v1
+
+# .env.production
+VITE_API_BASE_URL=https://xlft531a6e.execute-api.us-east-1.amazonaws.com/prod/v1
+```
+
+Update these if the API Gateway ids change after a redeploy.
 
 Public (no auth): `/v1/openapi.yaml`, `/v1/docs`.
 
