@@ -34,7 +34,10 @@ export function UserNav() {
   const [notifToast, setNotifToast] = useState(true)
 
   const baseUrl = API_BASE_URL || ''
-  const apiStage: 'dev' | 'prod' | 'custom' = /\/dev\//.test(baseUrl) ? 'dev' : /\/prod\//.test(baseUrl) ? 'prod' : 'custom'
+  // Robust stage detection: force prod when build mode is production, else inspect URL path
+  const runtimeProd = (import.meta as any).env?.MODE === 'production' || process.env.NODE_ENV === 'production'
+  const derivedStage: 'dev' | 'custom' | 'prod' = runtimeProd ? 'prod' : (/\/dev\//.test(baseUrl) ? 'dev' : /\/prod\//.test(baseUrl) ? 'prod' : 'custom')
+  const apiStage = derivedStage
 
   const initials = (user.name || user.email || 'U')
     .split(/\s|\./)
@@ -52,10 +55,11 @@ export function UserNav() {
               <h3 className="text-lg font-semibold">Profile Info</h3>
               <p className="text-sm text-muted-foreground">Update your basic account information.</p>
             </div>
-            {apiStage !== 'prod' && (
+      {/* Hide environment + base URL strictly in production stage */}
+      {apiStage !== 'prod' && !runtimeProd && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Environment:</span>
-                <Badge variant={apiStage==='prod' ? 'default':'secondary'} className={cn(apiStage==='dev' && 'bg-amber-500/80 text-black', apiStage==='custom' && 'bg-blue-500/80')}>
+        <Badge variant='secondary' className={cn(apiStage==='dev' && 'bg-amber-500/80 text-black', apiStage==='custom' && 'bg-blue-500/80')}>
                   {apiStage.toUpperCase()}
                 </Badge>
                 <span className="truncate max-w-[260px] font-mono text-xs" title={API_BASE_URL}>{API_BASE_URL}</span>
