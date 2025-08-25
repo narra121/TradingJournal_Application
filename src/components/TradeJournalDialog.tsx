@@ -280,20 +280,36 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       // Prepare full updated ApiTrade object
       const preservedOpen = importMode && rawOpenDateRef.current ? rawOpenDateRef.current : core.openDate;
       const preservedClose = importMode && rawCloseDateRef.current ? rawCloseDateRef.current : (core.closeDate || null);
+      // Derive pnl / netPnl if possible (only for full trade update path)
+      const entryNum = toNum(core.entryPrice);
+      const exitNum = toNum(core.exitPrice);
+      const qtyNum = toNum(core.quantity) ?? 0;
+      const commissionNum = toNum(core.commission) ?? 0;
+      const feesNum = toNum(core.fees) ?? 0;
+      let pnlDerived: number | null = tradeData.pnl ?? null;
+      if (entryNum !== null && exitNum !== null && qtyNum && core.status === 'CLOSED') {
+        const raw = core.side === 'BUY' ? (exitNum - entryNum) * qtyNum : (entryNum - exitNum) * qtyNum;
+        pnlDerived = Math.round(raw * 100) / 100;
+      }
+      let netPnlDerived: number | null = tradeData.netPnl ?? null;
+      if (pnlDerived !== null) {
+        netPnlDerived = Math.round((pnlDerived - commissionNum - feesNum) * 100) / 100;
+      }
+
       const updatedTrade: ApiTrade = {
         ...tradeData,
-  symbol: core.symbol,
-  side: core.side,
-  status: core.status,
-  quantity: toNum(core.quantity) ?? 0,
+        symbol: core.symbol,
+        side: core.side,
+        status: core.status,
+        quantity: qtyNum,
         openDate: preservedOpen,
         closeDate: preservedClose,
-  entryPrice: toNum(core.entryPrice),
-  exitPrice: toNum(core.exitPrice),
-  stopLoss: toNum(core.stopLoss),
-  takeProfit: toNum(core.takeProfit),
-  commission: toNum(core.commission),
-  fees: toNum(core.fees),
+        entryPrice: entryNum,
+        exitPrice: exitNum,
+        stopLoss: toNum(core.stopLoss),
+        takeProfit: toNum(core.takeProfit),
+        commission: commissionNum || null,
+        fees: feesNum || 0,
         timeframe: core.timeframe || null,
         tradeGrade: core.tradeGrade ?? null,
         confidence: core.confidence ?? null,
@@ -314,7 +330,10 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         riskAmount: metrics.riskAmount ?? null,
         marketCondition: metrics.marketCondition ?? null,
         tradingSession: metrics.tradingSession ?? null,
-  // removed unknown fields
+        pnl: pnlDerived ?? undefined,
+        netPnl: netPnlDerived ?? undefined,
+  remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
+  realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
       };
   if (localSave && onSave) {
         // Local save without API call; keep dialog open so user can continue editing
@@ -341,27 +360,27 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         symbol: core.symbol,
         side: core.side,
         status: core.status,
-  quantity: toNum(core.quantity) ?? 0,
-        openDate: core.openDate, // API expects YYYY-MM-DD (already normalized when not importMode)
+        quantity: qtyNum,
+        openDate: core.openDate,
         closeDate: core.closeDate || null,
-        entryPrice: toNum(core.entryPrice),
-        exitPrice: toNum(core.exitPrice),
+        entryPrice: entryNum,
+        exitPrice: exitNum,
         stopLoss: toNum(core.stopLoss),
         takeProfit: toNum(core.takeProfit),
-        commission: toNum(core.commission),
-        fees: toNum(core.fees),
+        commission: commissionNum || null,
+        fees: feesNum || 0,
         timeframe: core.timeframe || null,
         tradeGrade: core.tradeGrade || null,
         confidence: core.confidence ?? null,
         setupQuality: core.setupQuality ?? null,
         execution: core.execution ?? null,
-  preTradeNotes: psychology.preNotes || null,
+        preTradeNotes: psychology.preNotes || null,
         lessons,
         newsEvents,
         economicEvents,
         tags,
-  images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
-  psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience, lossRecovery: psychology.lossRecovery },
+        images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+        psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
         emotionalState: psychology.emotionalState || null,
         postTradeNotes: psychology.notes || null,
         riskRewardRatio: analysis.riskRewardRatio ?? null,
@@ -370,6 +389,10 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         riskAmount: metrics.riskAmount ?? null,
         marketCondition: metrics.marketCondition || null,
         tradingSession: metrics.tradingSession || null,
+        pnl: pnlDerived ?? undefined,
+        netPnl: netPnlDerived ?? undefined,
+        remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
+        realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
       }
   await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes })).unwrap()
   // After successful API update, clear any cached local images (now source of truth is backend)
