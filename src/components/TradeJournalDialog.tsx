@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from "@/ui/dialog";
 import { Button } from "@/ui/button";
-import { Loader2, Check, X as XIcon } from "lucide-react";
+import { Loader2, X as XIcon } from "lucide-react";
 import { ImageType, ApiTrade, TradeSide, TradeStatus, TradeGrade } from "@/app/types";
 
 import { useDispatch } from "react-redux";
@@ -31,9 +31,12 @@ interface TradeJournalDialogProps {
   isOpen: boolean;
   onClose: () => void;
   trade: ApiTrade | null;
+  onSave?: (updated: ApiTrade) => void;
+  /** if true, always perform local save (import mode) */
+  importMode?: boolean;
 }
 
-export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialogProps) {
+export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode }: TradeJournalDialogProps) {
   const dispatch: AppDispatch = useDispatch();
   const [images, setImages] = useState<ImageType[]>([]);
   const [psychology, setPsychology] = useState<PsychologyState>({ greed: false, fomo: false, revenge: false, fear:false, overconfidence:false, patience:false, emotionalState: '', preNotes: '', notes: '' });
@@ -81,7 +84,9 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   const [initialImagesState, setInitialImagesState] = useState<ImageType[]>([]);
 
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const isLocalEditable = importMode || !!onSave; // when true allow editing of core & price fields
+  // isSaved removed (rely on isDirty + isSaving)
 
   // selectedtradeDetails is now passed as a prop
   // const selectedtradeDetails: TradeDetails | null = useSelector(
@@ -89,11 +94,41 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   // );
   // Use provided ApiTrade directly
   const tradeData = trade || null
+  // preserve original date-time strings for import mode so we don't lose time component
+  const rawOpenDateRef = useRef<string | null>(null);
+  const rawCloseDateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen && tradeData) {
+      // Always clear previous images to avoid leakage across different trades
+      setImages([]);
+      setInitialImagesState([]);
       // Build fresh snapshot only once per open or trade change
-  const newImages: ImageType[] = (tradeData.images || []).map(i => ({ id: i.id, url: i.url, timeframe: i.timeframe || '', description: i.description || '' }))
+      if (importMode) {
+        rawOpenDateRef.current = tradeData.openDate || null;
+        rawCloseDateRef.current = tradeData.closeDate || null;
+      } else {
+        rawOpenDateRef.current = null;
+        rawCloseDateRef.current = null;
+      }
+      let newImages: ImageType[] = (tradeData.images || []).map(i => ({ id: i.id, url: i.url, timeframe: i.timeframe || '', description: i.description || '' }))
+      if (!importMode && tradeData.tradeId) {
+        if (newImages.length > 0) {
+          // Backend has images now; purge any stale cache
+          try { localStorage.removeItem(`journalImages:${tradeData.tradeId}`) } catch {}
+        } else {
+          // Fallback to cache only if backend returned none
+          try {
+            const cached = localStorage.getItem(`journalImages:${tradeData.tradeId}`)
+            if (cached) {
+              const parsed = JSON.parse(cached)
+              if (Array.isArray(parsed)) {
+                newImages = parsed.map((img: any) => ({ id: img.id, url: img.url, timeframe: img.timeframe || '', description: img.description || '' }))
+              }
+            }
+          } catch {}
+        }
+      }
       const newPsychology: PsychologyState = {
         greed: !!tradeData.psychology?.greed,
         fomo: !!tradeData.psychology?.fomo,
@@ -107,35 +142,32 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
       }
       const newAnalysis: AnalysisState = {
         riskRewardRatio: tradeData.riskRewardRatio ?? null,
-        setupType: tradeData.setupType || '',
-        mistakes: tradeData.mistakes || []
+        // Normalize to lowercase because selection list uses lowercase values
+        setupType: (tradeData.setupType || '').toLowerCase(),
+        // Mistakes stored lowercase in checkbox logic; convert to lowercase array
+        mistakes: (tradeData.mistakes || []).map(m => (m || '').toLowerCase()).filter(Boolean)
       }
       const newMetrics: MetricsState = {
         riskAmount: tradeData.riskAmount ?? null,
-        marketCondition: tradeData.marketCondition || '',
-        tradingSession: tradeData.tradingSession || ''
+        marketCondition: (tradeData.marketCondition || '').toLowerCase(),
+        tradingSession: (tradeData.tradingSession || '').toLowerCase()
       }
       // Normalize date strings to YYYY-MM-DD if they include time
-      const fmtDate = (d?: string | null) => {
-        if(!d) return '';
-        if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-        const only = d.split('T')[0];
-        return only || '';
-      }
+    // Preserve full ISO datetime (backend stores with time). Truncation removed.
       const newCore = {
         symbol: tradeData.symbol,
         side: tradeData.side,
         status: tradeData.status,
         quantity: tradeData.quantity,
-        openDate: fmtDate(tradeData.openDate),
-        closeDate: fmtDate(tradeData.closeDate || undefined),
+          openDate: tradeData.openDate || '',
+          closeDate: tradeData.closeDate || '',
         entryPrice: tradeData.entryPrice ?? '',
         exitPrice: tradeData.exitPrice ?? '',
         stopLoss: tradeData.stopLoss ?? '',
         takeProfit: tradeData.takeProfit ?? '',
         commission: tradeData.commission ?? '',
         fees: tradeData.fees ?? '',
-        timeframe: tradeData.timeframe || '',
+  timeframe: (tradeData.timeframe || ''),
         tradeGrade: tradeData.tradeGrade ?? null,
         confidence: tradeData.confidence ?? null,
         setupQuality: tradeData.setupQuality ?? null,
@@ -162,20 +194,23 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
       setInitialPsychology(newPsychology);
       setInitialAnalysis(newAnalysis);
       setInitialMetrics(newMetrics);
-      setInitialCore(newCore);
-      setIsSaved(false);
+  setInitialCore(newCore);
+  setTouched(false);
+  // snapshot refreshed
     } else if (!isOpen) {
       setImages([]);
       setInitialImagesState([]);
+      setTouched(false);
     }
   }, [isOpen, tradeData]);
 
   const isDirty = useMemo(() => {
-    if (!tradeData) return false
-    const currentComposite = JSON.stringify({ psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags })
-    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags })
-    return currentComposite !== initialComposite
-  }, [psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData])
+    if (!tradeData) return false;
+    if (touched) return true;
+    const currentComposite = JSON.stringify({ psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags });
+    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags });
+    return currentComposite !== initialComposite;
+  }, [touched, psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
 
   const emotionalStates = [
     "Calm",
@@ -201,18 +236,28 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
     "Early Exit",
   ];
 
-  const handlePsychologyChange = (changes: Partial<PsychologyState>) => { setPsychology(p => ({ ...p, ...changes })); setIsSaved(false) }
-  const handleAnalysisChange = (changes: Partial<AnalysisState>) => { setAnalysis(a => ({ ...a, ...changes })); setIsSaved(false) }
-  const handleMetricsChange = (changes: Partial<MetricsState>) => { setMetrics(m => ({ ...m, ...changes })); setIsSaved(false) }
+  const markDirty = () => { if(!touched) setTouched(true) }
+  const handlePsychologyChange = (changes: Partial<PsychologyState>) => { setPsychology(p => ({ ...p, ...changes })); markDirty() }
+  const handleAnalysisChange = (changes: Partial<AnalysisState>) => { setAnalysis(a => ({ ...a, ...changes })); markDirty() }
+  const handleMetricsChange = (changes: Partial<MetricsState>) => { setMetrics(m => ({ ...m, ...changes })); markDirty() }
 
   const handleSave = useCallback(async () => {
     if (!tradeData || !isDirty) return;
 
   setIsSaving(true);
-  setIsSaved(false);
-  toast.loading('Updating trade...', { id: 'journal-update' })
+  // mark saving start
+  const localSave = importMode || !!onSave;
+  toast.loading(localSave ? 'Saving changes locally...' : 'Updating trade...', { id: 'journal-update' });
+  // helper to convert input strings to numbers or null
+  // Normalize numeric fields and round to 2 decimals
+  const toNum = (v: any) => {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100) / 100;
+  };
 
-    try {
+  try {
       const imagesToUpload = images.filter((image) => image.file);
       const imageUrls = await Promise.all(
         imagesToUpload.map(async () => {
@@ -232,15 +277,72 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         return image;
       });
 
-      // Map legacy nested edits back to ApiTradeUpdate shape
-      const toNum = (v: any) => (v === '' || v === null ? null : Number(v))
-      // lists already arrays
-      const changes: any = {
+      // Prepare full updated ApiTrade object
+      const preservedOpen = importMode && rawOpenDateRef.current ? rawOpenDateRef.current : core.openDate;
+      const preservedClose = importMode && rawCloseDateRef.current ? rawCloseDateRef.current : (core.closeDate || null);
+      const updatedTrade: ApiTrade = {
+        ...tradeData,
+  symbol: core.symbol,
+  side: core.side,
+  status: core.status,
+  quantity: toNum(core.quantity) ?? 0,
+        openDate: preservedOpen,
+        closeDate: preservedClose,
+  entryPrice: toNum(core.entryPrice),
+  exitPrice: toNum(core.exitPrice),
+  stopLoss: toNum(core.stopLoss),
+  takeProfit: toNum(core.takeProfit),
+  commission: toNum(core.commission),
+  fees: toNum(core.fees),
+        timeframe: core.timeframe || null,
+        tradeGrade: core.tradeGrade ?? null,
+        confidence: core.confidence ?? null,
+        setupQuality: core.setupQuality ?? null,
+        execution: core.execution ?? null,
+        preTradeNotes: psychology.preNotes || null,
+        mistakes: analysis.mistakes || [],
+        newsEvents,
+        economicEvents,
+        lessons,
+        tags,
+        psychology: { ...psychology },
+        images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+        emotionalState: psychology.emotionalState || null,
+        postTradeNotes: psychology.notes || null,
+        riskRewardRatio: analysis.riskRewardRatio ?? null,
+        setupType: analysis.setupType || null,
+        riskAmount: metrics.riskAmount ?? null,
+        marketCondition: metrics.marketCondition ?? null,
+        tradingSession: metrics.tradingSession ?? null,
+  // removed unknown fields
+      };
+  if (localSave && onSave) {
+        // Local save without API call; keep dialog open so user can continue editing
+        onSave(updatedTrade);
+        // Update baseline snapshots so button disables until more edits
+        setInitialCore(core);
+        setInitialPsychology(psychology);
+        setInitialAnalysis(analysis);
+        setInitialMetrics(metrics);
+        setInitialImagesState(updatedImages);
+        setInitialLessons(lessons);
+        setInitialNewsEvents(newsEvents);
+        setInitialEconomicEvents(economicEvents);
+        setInitialTags(tags);
+        setTouched(false);
+        // Persist images locally so they can be restored when viewing in the normal trades table after import save
+        try { localStorage.setItem(`journalImages:${updatedTrade.tradeId}`, JSON.stringify(updatedImages)); } catch {}
+        toast.success('Changes saved locally', { id: 'journal-update' });
+        setIsSaving(false);
+        return;
+      }
+  // lists already arrays
+  const changes: any = {
         symbol: core.symbol,
         side: core.side,
         status: core.status,
-        quantity: core.quantity,
-        openDate: core.openDate,
+  quantity: toNum(core.quantity) ?? 0,
+        openDate: core.openDate, // API expects YYYY-MM-DD (already normalized when not importMode)
         closeDate: core.closeDate || null,
         entryPrice: toNum(core.entryPrice),
         exitPrice: toNum(core.exitPrice),
@@ -270,6 +372,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
         tradingSession: metrics.tradingSession || null,
       }
   await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes })).unwrap()
+  // After successful API update, clear any cached local images (now source of truth is backend)
+  try { localStorage.removeItem(`journalImages:${tradeData.tradeId}`) } catch {}
 
   setInitialPsychology(psychology);
       setInitialAnalysis(analysis);
@@ -281,18 +385,44 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
       setInitialEconomicEvents(economicEvents);
       setInitialTags(tags);
 
-  setIsSaved(true);
+  // saved
   toast.success('Trade updated', { id: 'journal-update' })
     } catch (error) {
       console.error("Error saving trade:", error);
-      setIsSaved(false);
+  // failed
   toast.error((error as any)?.message || 'Update failed', { id: 'journal-update' })
     } finally {
-      setIsSaving(false);
+  setIsSaving(false);
+  setTouched(false);
     }
-  }, [dispatch, images, psychology, analysis, metrics, core, tradeData, isDirty]);
+  }, [
+    dispatch,
+    images,
+    psychology,
+    analysis,
+    metrics,
+    core,
+    lessons,
+    newsEvents,
+    economicEvents,
+    tags,
+    tradeData,
+    isDirty,
+  onSave,
+    onClose,
+  importMode,
+  ]);
 
   const handleClose = () => {
+    // In import/local mode ensure we don't lose unsaved edits when user clicks Close
+    if ((importMode || onSave) && onSave && isDirty && !isSaving) {
+      // trigger local save then close
+      handleSave().finally(() => {
+        dispatch(setIsEditOpen(false));
+        onClose();
+      })
+      return;
+    }
     dispatch(setIsEditOpen(false))
     onClose()
   }
@@ -300,17 +430,17 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
   if (!isOpen || !tradeData) return null;
 
   // Inline chip input component for list fields
-  function ChipsInput({ label, items, setItems, placeholder, setIsSaved }: { label: string; items: string[]; setItems: (v: string[])=>void; placeholder?: string; setIsSaved: (v: boolean)=>void }) {
+  function ChipsInput({ label, items, setItems, placeholder }: { label: string; items: string[]; setItems: (v: string[])=>void; placeholder?: string }) {
     const [value, setValue] = useState('')
     const addItem = () => {
       const trimmed = value.trim()
       if (trimmed && !items.includes(trimmed)) {
         setItems([...items, trimmed])
-        setIsSaved(false)
+        markDirty()
       }
       setValue('')
     }
-    const remove = (i: number) => { const next = items.filter((_,idx)=>idx!==i); setItems(next); setIsSaved(false) }
+    const remove = (i: number) => { const next = items.filter((_,idx)=>idx!==i); setItems(next); markDirty() }
     return (
       <div className="space-y-1">
         <Label className="text-xs">{label}</Label>
@@ -346,25 +476,55 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
           <div className="flex gap-6 p-6">
             <div className="w-1/4 space-y-6">
               <div className="space-y-4 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Core (Read Only)</h4>
+                <h4 className="font-medium text-sm">Core {isLocalEditable ? '(Editable)' : '(Read Only)'}</h4>
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-1"><Label>Symbol</Label><div className="rounded bg-muted px-2 py-1 font-mono text-xs">{core.symbol}</div></div>
-                  <div className="space-y-1"><Label>Side</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.side}</div></div>
-                  <div className="space-y-1"><Label>Status</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.status}</div></div>
-                  <div className="space-y-1"><Label>Quantity</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.quantity}</div></div>
-                  <div className="space-y-1"><Label>Open Date</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.openDate || '-'}</div></div>
-                  <div className="space-y-1"><Label>Close Date</Label><div className="rounded bg-muted px-2 py-1 text-xs">{core.closeDate || '-'}</div></div>
+                  <div className="space-y-1"><Label>Symbol</Label>{isLocalEditable ? <Input value={core.symbol} onChange={e=>{ setCore(c=>({...c,symbol:e.target.value})); markDirty(); }} /> : <div className="rounded bg-muted px-2 py-1 font-mono text-xs">{core.symbol}</div>}</div>
+                  <div className="space-y-1"><Label>Side</Label>{isLocalEditable ? (
+                    <Select value={core.side} onValueChange={v=>{ setCore(c=>({...c,side:v as TradeSide})); markDirty(); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{['BUY','SELL'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : <div className="rounded bg-muted px-2 py-1 text-xs">{core.side}</div>}</div>
+                  <div className="space-y-1"><Label>Status</Label>{isLocalEditable ? (
+                    <Select value={core.status} onValueChange={v=>{ setCore(c=>({...c,status:v as TradeStatus})); markDirty(); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{['OPEN','CLOSED','PARTIAL','CANCELLED'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : <div className="rounded bg-muted px-2 py-1 text-xs">{core.status}</div>}</div>
+                  <div className="space-y-1"><Label>Quantity</Label>{isLocalEditable ? (
+                    <Input
+                      type="number"
+                      value={core.quantity}
+                      onChange={e=>{
+                        const val = e.target.value;
+                        setCore(c=>({ ...c, quantity: val === '' ? 0 : Number(val) }));
+                        markDirty();
+                      }}
+                    />
+                  ) : <div className="rounded bg-muted px-2 py-1 text-xs">{core.quantity}</div>}</div>
+                  <div className="space-y-1"><Label>Open Date</Label>{isLocalEditable ? <Input value={core.openDate} onChange={e=>{ setCore(c=>({...c,openDate:e.target.value})); markDirty(); }} placeholder="YYYY-MM-DDTHH:mm:ss" /> : <div className="rounded bg-muted px-2 py-1 text-xs">{core.openDate || '-'}</div>}</div>
+                  <div className="space-y-1"><Label>Close Date</Label>{isLocalEditable ? <Input value={core.closeDate} onChange={e=>{ setCore(c=>({...c,closeDate:e.target.value})); markDirty(); }} placeholder="YYYY-MM-DDTHH:mm:ss" /> : <div className="rounded bg-muted px-2 py-1 text-xs">{core.closeDate || '-'}</div>}</div>
                 </div>
               </div>
               <div className="space-y-2 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Prices (Read Only)</h4>
+                <h4 className="font-medium text-sm">Prices {isLocalEditable ? '(Editable)' : '(Read Only)'}</h4>
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  {['entryPrice','exitPrice','stopLoss','takeProfit','commission','fees'].map(field => (
-                    <div key={field} className="space-y-1">
-                      <Label className="capitalize">{field.replace(/([A-Z])/g,' $1')}</Label>
-                      <div className="rounded bg-muted px-2 py-1">{(core as any)[field] !== '' && (core as any)[field] !== null ? (core as any)[field] : '-'}</div>
-                    </div>
-                  ))}
+                  {['entryPrice','exitPrice','stopLoss','takeProfit','commission','fees'].map(field => {
+                    const label = field.replace(/([A-Z])/g,' $1');
+                    const value = (core as any)[field];
+                    return (
+                      <div key={field} className="space-y-1">
+                        <Label className="capitalize">{label}</Label>
+                        {isLocalEditable ? (
+                          <Input
+                            type="number"
+                            value={value === '' || value === null ? '' : value}
+                            onChange={e=>{ const v = e.target.value; setCore(c=>({...c,[field]: v})); markDirty(); }}
+                          />
+                        ) : <div className="rounded bg-muted px-2 py-1">{value !== '' && value !== null ? value : '-'}</div>}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
               <div className="space-y-3 p-4 border rounded-md">
@@ -375,12 +535,12 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
                       <Label className="capitalize">{f}</Label>
                       <span>{(core as any)[f] ?? 0}</span>
                     </div>
-                    <Slider value={[(core as any)[f] ?? 0]} max={100} step={1} onValueChange={v=>{ setCore(c=>({ ...c, [f]: v[0] })); setIsSaved(false) }} />
+                    <Slider value={[(core as any)[f] ?? 0]} max={100} step={1} onValueChange={v=>{ setCore(c=>({ ...c, [f]: v[0] })); markDirty() }} />
                   </div>
                 ))}
                 <div className="space-y-1">
                   <Label>Grade</Label>
-                  <Select value={core.tradeGrade ?? ''} onValueChange={v=>{ setCore(c=>({ ...c, tradeGrade: v as TradeGrade })); setIsSaved(false) }}>
+                  <Select value={core.tradeGrade ?? ''} onValueChange={v=>{ setCore(c=>({ ...c, tradeGrade: v as TradeGrade })); markDirty() }}>
                     <SelectTrigger><SelectValue placeholder="Grade" /></SelectTrigger>
                     <SelectContent>{['A','B','C','D','F'].map(g=> <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
                   </Select>
@@ -402,33 +562,30 @@ export function TradeJournalDialog({ isOpen, onClose, trade }: TradeJournalDialo
               <AnalysisSection analysis={analysis} onChange={handleAnalysisChange} setupTypes={setupTypes} tradeMistakes={tradeMistakes} />
               <div className="space-y-4 p-4 border rounded-md">
                 <h4 className="font-medium text-sm">Meta</h4>
-                <ChipsInput label="Lessons" items={lessons} setItems={setLessons} placeholder="Add lesson and press Enter" setIsSaved={setIsSaved} />
-                <ChipsInput label="News Events" items={newsEvents} setItems={setNewsEvents} placeholder="Add news event" setIsSaved={setIsSaved} />
-                <ChipsInput label="Economic Events" items={economicEvents} setItems={setEconomicEvents} placeholder="Add economic event" setIsSaved={setIsSaved} />
-                <ChipsInput label="Tags" items={tags} setItems={setTags} placeholder="Add tag" setIsSaved={setIsSaved} />
+                <ChipsInput label="Lessons" items={lessons} setItems={setLessons} placeholder="Add lesson and press Enter" />
+                <ChipsInput label="News Events" items={newsEvents} setItems={setNewsEvents} placeholder="Add news event" />
+                <ChipsInput label="Economic Events" items={economicEvents} setItems={setEconomicEvents} placeholder="Add economic event" />
+                <ChipsInput label="Tags" items={tags} setItems={setTags} placeholder="Add tag" />
               </div>
               <ImageDocumentationSection
                 images={images}
                 setImages={setImages}
+                onDirty={markDirty}
               />
             </div>
           </div>
         </div>
         <DialogFooter className="flex justify-end px-6 py-3 border-t bg-background">
-          {isSaved ? (
-            <Button onClick={handleClose} className="gap-2" variant="secondary">
-              <Check className="h-4 w-4" /> Close
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !isDirty}
-              className="gap-2"
-            >
-              {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          )}
+          <Button onClick={handleClose} variant="outline" disabled={isSaving} className="mr-2">Close</Button>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || !isDirty}
+            className="gap-2"
+            variant={isDirty ? 'default' : 'secondary'}
+          >
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            {isSaving ? 'Saving...' : (importMode || onSave) ? 'Update Trade' : 'Save Changes'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

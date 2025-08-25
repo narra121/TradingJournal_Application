@@ -111,7 +111,12 @@ export function Trades() {
     </Card>
   </div>
   <AwsTradeDialog open={isAwsDialogOpen} onOpenChange={o=>{ if(!o){ setIsAwsDialogOpen(false) } else setIsAwsDialogOpen(true) }} trade={selectedTradeId ? awsTrades.find(t=>t.tradeId===selectedTradeId) as any : null} />
-  <TradeJournalDialog isOpen={isJournalOpen} onClose={()=>dispatch(setIsEditOpen(false))} trade={selectedTradeId ? awsTrades.find(t=>t.tradeId===selectedTradeId) as any : null} />
+  <TradeJournalDialog
+    key={selectedTradeId || 'journal'}
+    isOpen={isJournalOpen}
+    onClose={()=>dispatch(setIsEditOpen(false))}
+    trade={selectedTradeId ? awsTrades.find(t=>t.tradeId===selectedTradeId) as any : null}
+  />
   {/* Removed floating button in favor of header New button */}
   </>
   );

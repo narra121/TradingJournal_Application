@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { AuthLoginResponse, IdTokenClaims } from './types'
+import { toast } from 'sonner'
 import { API_BASE_URL } from '@/lib/config'
 
 interface AwsAuthState {
@@ -66,15 +67,35 @@ export const awsRefresh = createAsyncThunk(
 )
 
 // Schedule automatic refresh (simple singleton timer in module scope)
-let refreshTimer: number | null = null
+let expiryWarningTimer: number | null = null
+let logoutTimer: number | null = null
 
-function scheduleRefresh(dispatch: any, state: AwsAuthState) {
-  if (!state.expiresAt || !state.refreshToken) return
-  const fireIn = 59 * 60 // refresh after 59 minutes (3540 seconds)
-  if (refreshTimer) window.clearTimeout(refreshTimer)
-  refreshTimer = window.setTimeout(() => {
-    dispatch(awsRefresh({ refreshToken: state.refreshToken! }))
-  }, fireIn * 1000)
+// Show a toast when entering the buffer window, then auto logout at real expiry.
+function scheduleExpiryFlow(dispatch: any, state: AwsAuthState, bufferSeconds = 60) {
+  if (!state.expiresAt) return
+  const nowSec = Math.floor(Date.now()/1000)
+  const secondsUntilExpiry = state.expiresAt - nowSec
+  if (expiryWarningTimer) { window.clearTimeout(expiryWarningTimer); expiryWarningTimer = null }
+  if (logoutTimer) { window.clearTimeout(logoutTimer); logoutTimer = null }
+  if (secondsUntilExpiry <= 0) {
+  // Defer dispatch to avoid nested dispatch inside reducer execution
+  setTimeout(() => dispatch(awsLogout()), 0)
+    return
+  }
+  const warnDelay = secondsUntilExpiry - bufferSeconds
+  if (warnDelay <= 0) {
+    // Already inside buffer – show immediately
+    toast.warning(`Session expires in ${secondsUntilExpiry}s`, { id: 'session-expiry' })
+  } else {
+    expiryWarningTimer = window.setTimeout(() => {
+      toast.warning(`Session will expire in ${bufferSeconds}s`, { id: 'session-expiry' })
+    }, warnDelay * 1000)
+  }
+  logoutTimer = window.setTimeout(() => {
+    toast.error('Session expired – logging out', { id: 'session-expiry' })
+  // Defer to ensure we're outside any reducer call stack
+  setTimeout(() => dispatch(awsLogout()), 0)
+  }, secondsUntilExpiry * 1000)
 }
 
 const awsAuthSlice = createSlice({
@@ -99,6 +120,8 @@ const awsAuthSlice = createSlice({
       state.expiresAt = Number(expiresAtStr)
       if (claims?.sub) state.user = { sub: claims.sub, email: claims.email as string | undefined }
       state.bootstrapped = true
+      // Schedule (or immediate) refresh using global store dispatcher if available
+  scheduleExpiryFlow((action: any) => (action?.type ? (globalThis as any).store?.dispatch(action) : undefined), state)
     },
   markBootstrapped(state) { state.bootstrapped = true },
   markRefreshScheduled(state) { state.refreshScheduled = true },
@@ -112,7 +135,7 @@ const awsAuthSlice = createSlice({
         s.accessToken = a.payload.AccessToken
         s.refreshToken = a.payload.RefreshToken
         s.expiresAt = Math.floor(Date.now()/1000) + a.payload.ExpiresIn
-        const claims = decodeJwt(a.payload.IdToken)
+  const claims = decodeJwt(a.payload.IdToken)
         if (claims?.sub) s.user = { sub: claims.sub, email: claims.email as string | undefined }
         localStorage.setItem('tj.idToken', s.idToken!)
         localStorage.setItem('tj.refreshToken', s.refreshToken!)
@@ -120,7 +143,7 @@ const awsAuthSlice = createSlice({
   s.refreshScheduled = false
   s.bootstrapped = true
   // schedule
-  scheduleRefresh((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s) // fallback if store attached globally
+  scheduleExpiryFlow((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s)
       })
       .addCase(awsLogin.rejected, (s, a) => { s.loading = false; s.error = a.error.message || 'Login failed' })
       .addCase(awsRefresh.fulfilled, (s, a) => {
@@ -128,12 +151,12 @@ const awsAuthSlice = createSlice({
         s.idToken = a.payload.IdToken
         s.accessToken = a.payload.AccessToken
         s.expiresAt = Math.floor(Date.now()/1000) + a.payload.ExpiresIn
-        const claims = decodeJwt(a.payload.IdToken)
+  const claims = decodeJwt(a.payload.IdToken)
         if (claims?.sub) s.user = { sub: claims.sub, email: claims.email as string | undefined }
         localStorage.setItem('tj.idToken', s.idToken!)
         localStorage.setItem('tj.expiresAt', String(s.expiresAt))
   s.refreshScheduled = false
-  scheduleRefresh((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s)
+  scheduleExpiryFlow((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s)
       })
   }
 })

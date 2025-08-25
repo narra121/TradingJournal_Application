@@ -14,9 +14,10 @@ import {
 interface ImageDocumentationSectionProps {
   images: ImageType[];
   setImages: Dispatch<SetStateAction<ImageType[]>>;
+  onDirty: () => void;
 }
 
-export function ImageDocumentationSection({ images, setImages }: ImageDocumentationSectionProps) {
+export function ImageDocumentationSection({ images, setImages, onDirty }: ImageDocumentationSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -27,8 +28,10 @@ export function ImageDocumentationSection({ images, setImages }: ImageDocumentat
   const addBlankImage = () => {
     setImages(prev => {
       if(prev.length >= MAX_IMAGES) return prev;
-      const next = [...prev, { id: crypto.randomUUID(), url: '', timeframe: '', description: '' }]
-      setEditingIndex(next.length - 1)
+      const created = { id: crypto.randomUUID(), url: '', timeframe: '', description: '' }
+      const next = [created, ...prev];
+      setEditingIndex(0)
+      onDirty()
       return next
     })
   }
@@ -43,7 +46,7 @@ export function ImageDocumentationSection({ images, setImages }: ImageDocumentat
         reader.onerror = reject
         reader.readAsDataURL(file)
       })
-      updateImageField(idx, 'url', base64)
+  updateImageField(idx, 'url', base64)
     } finally {
       setIsUploading(false)
     }
@@ -77,10 +80,12 @@ export function ImageDocumentationSection({ images, setImages }: ImageDocumentat
 
   const updateImageField = (idx: number, field: keyof ImageType, value: any) => {
     setImages((imgs: ImageType[]) => imgs.map((img: ImageType, i: number) => i === idx ? { ...img, [field]: value } : img))
+    onDirty()
   }
 
   const removeImage = (idx: number) => {
     setImages((imgs: ImageType[]) => imgs.filter((_, i: number) => i !== idx))
+    onDirty()
   }
 
   return (
@@ -106,7 +111,7 @@ export function ImageDocumentationSection({ images, setImages }: ImageDocumentat
                 </div>
                 <div className="flex gap-2">
                   {isEditing ? (
-                    <Button size="sm" variant="outline" onClick={()=> setEditingIndex(null)} className="gap-1"><Pencil className="w-4 h-4 rotate-45"/>Done</Button>
+                    <Button size="sm" variant="outline" onClick={()=> { setEditingIndex(null); }} className="gap-1">Done</Button>
                   ) : (
                     <Button size="sm" variant="outline" onClick={()=> setEditingIndex(idx)} className="gap-1"><Pencil className="w-4 h-4"/>Edit</Button>
                   )}
@@ -158,6 +163,11 @@ export function ImageDocumentationSection({ images, setImages }: ImageDocumentat
                     <Textarea value={img.description || ''} onChange={e=>updateImageField(idx,'description', e.target.value)} className="min-h-[80px] text-xs" placeholder="Optional description" />
                   ) : (
                     <div className="text-xs text-muted-foreground min-h-[32px] whitespace-pre-wrap">{img.description || '—'}</div>
+                  )}
+                  {isEditing && (
+                    <div className="pt-1">
+                      <Button size="sm" variant="secondary" onClick={()=> { setEditingIndex(null); }}>Done</Button>
+                    </div>
                   )}
                 </div>
               </div>

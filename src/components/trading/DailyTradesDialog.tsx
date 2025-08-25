@@ -24,6 +24,7 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<{x:number;y:number}|null>(null);
+  const [showDesc, setShowDesc] = useState(true);
 
   useEffect(() => {
     if (isOpen && trades.length > 0) {
@@ -68,6 +69,11 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
     setImageScale(s => (s !== 1 ? 1 : 2));
     if(imageScale === 1) setImageOffset({x:0,y:0});
   };
+
+  // Reusable styles for toolbar buttons in fullscreen viewer for improved contrast & a11y
+  const toolbarBtn = (
+    baseExtra?: string,
+  ) => `h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/30 bg-white/12 backdrop-blur-sm text-white/90 hover:text-white hover:bg-white/25 hover:border-white/50 active:bg-white/35 active:border-white/60 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${baseExtra||''}`;
 
   if (!selectedDate) return null;
 
@@ -337,10 +343,47 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
                 {activeImage.timeframe && <Badge variant="outline" className="text-[10px] border-white/40 text-white">{activeImage.timeframe}</Badge>}
               </div>
               <div className="flex items-center gap-2">
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" onClick={()=> setImageScale(s=> Math.min(s+0.2,5))}><ZoomIn className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" onClick={()=> setImageScale(s=> Math.max(s-0.2,0.3))}><span className="text-lg leading-none">-</span></Button>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" onClick={()=> {setImageScale(1); setImageOffset({x:0,y:0});}}>1:1</Button>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" onClick={closeImageViewer}><X className="h-4 w-4" /></Button>
+                <button
+                  type="button"
+                  aria-label={showDesc? 'Hide description panel':'Show description panel'}
+                  className={toolbarBtn(showDesc ? 'ring-1 ring-white/60' : '')}
+                  onClick={()=> setShowDesc(s=>!s)}
+                  title={showDesc? 'Hide description':'Show description'}
+                >
+                  <span className="text-[10px] font-semibold tracking-wide">D</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Zoom in"
+                  className={toolbarBtn()}
+                  onClick={()=> setImageScale(s=> Math.min(s+0.2,5))}
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Zoom out"
+                  className={toolbarBtn()}
+                  onClick={()=> setImageScale(s=> Math.max(s-0.2,0.3))}
+                >
+                  <span className="text-lg leading-none font-semibold">-</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Reset zoom to 1:1"
+                  className={toolbarBtn()}
+                  onClick={()=> {setImageScale(1); setImageOffset({x:0,y:0});}}
+                >
+                  <span className="text-[11px] font-semibold">1:1</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Close fullscreen viewer"
+                  className={toolbarBtn('hover:bg-red-500/30 hover:border-red-400/60')}
+                  onClick={closeImageViewer}
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
             <div className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing" onMouseDown={handleMouseDown} onDoubleClick={handleDoubleClick}>
@@ -362,13 +405,19 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
                 />
               )}
             </div>
-            <div className="p-4 bg-black/60 text-white text-xs flex flex-col gap-2 max-h-[30vh] overflow-auto">
-              {activeImage.description && <div className="leading-snug">{activeImage.description}</div>}
-              <div className="flex flex-wrap gap-2 items-center">
-                {activeImage.timeframe && <Badge variant="outline" className="border-white/30 text-white text-[10px]">{activeImage.timeframe}</Badge>}
-                {selectedTrade?.symbol && <Badge variant="outline" className="border-white/30 text-white text-[10px]">{selectedTrade.symbol}</Badge>}
+            {showDesc && (
+              <div
+                className="p-3 bg-black/70 text-white text-[11px] flex flex-col gap-2 max-h-[20vh] overflow-auto backdrop-blur-sm border-t border-white/10"
+                onWheel={(e)=> { /* prevent zoom when scrolling description */ e.stopPropagation(); }}
+              >
+                {activeImage.description && <div className="leading-snug whitespace-pre-wrap">{activeImage.description}</div>}
+                <div className="flex flex-wrap gap-2 items-center pt-1">
+                  {activeImage.timeframe && <Badge variant="outline" className="border-white/30 text-white text-[10px]">{activeImage.timeframe}</Badge>}
+                  {selectedTrade?.symbol && <Badge variant="outline" className="border-white/30 text-white text-[10px]">{selectedTrade.symbol}</Badge>}
+                  <span className="ml-auto text-[9px] opacity-70 cursor-pointer hover:opacity-100" onClick={()=> setShowDesc(false)}>Hide</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </DialogContent>

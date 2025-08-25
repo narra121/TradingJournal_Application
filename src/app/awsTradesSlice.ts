@@ -84,9 +84,10 @@ export const bulkDelete = createAsyncThunk('awsTrades/bulkDelete', async (tradeI
 
 export const extractTrades = createAsyncThunk('awsTrades/extract', async (imageBase64: string, { getState, rejectWithValue }) => {
   try {
-    const state = getState() as RootState
-    const token = state.AwsAuth.idToken
-    const res = await extractTradesFromImage(imageBase64, token || undefined)
+  const state = getState() as RootState
+  const token = state.AwsAuth.idToken
+  if (!token) throw new Error('Not authenticated')
+  const res = await extractTradesFromImage(imageBase64, token)
     return res
   } catch (e: any) { return rejectWithValue(e.message || 'Extract failed') }
 })

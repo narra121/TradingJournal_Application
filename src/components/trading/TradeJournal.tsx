@@ -26,6 +26,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { extractTrades, createTradesBulk, listTrades } from '@/app/awsTradesSlice'
 import { RootState, AppDispatch } from '@/app/store'
 import { toast } from 'sonner'
+import { TradeJournalDialog } from '../TradeJournalDialog'
 
 // Removed legacy TradeDetails dependency; using lightweight ImportedTrade placeholder until bulk AWS import implemented.
 interface ImportedTrade {
@@ -38,8 +39,10 @@ interface ImportedTrade {
   exit: number;
   qty: number;
   pnl: number;
+  netPnl?: number | null;
   status: string;
   // Extended fields
+  riskRewardRatio?: number | null;
   stopLoss?: number | null;
   takeProfit?: number | null;
   commission?: number | null;
@@ -69,14 +72,10 @@ interface ImportedTrade {
   newsEvents?: string[];
   economicEvents?: string[];
   tags?: string[];
+  images?: { id: string; url: string; timeframe?: string | null; description?: string | null }[];
   selected?: boolean;
   idempotencyKey?: string;
 }
-import { Textarea } from '@/ui/textarea';
-import { Switch } from '@/ui/switch';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/ui/drawer';
-import { Badge } from '@/ui/badge';
-import { Separator } from '@/ui/separator';
 const parseDateString = (dateString: string): Date => {
   let format: string = "yyyy-MM-dd HH:mm:ss";
   const date = parse(dateString, format, new Date());
@@ -130,8 +129,8 @@ export function TradeImportDialog() {
   const [isSaving, setIsSaving] = useState(false); // For saving trades
   const [isSaved, setIsSaved] = useState(false); // Track successful save
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [detailTrade, setDetailTrade] = useState<ImportedTrade | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [journalTrade, setJournalTrade] = useState<ImportedTrade | null>(null);
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dispatch = useDispatch<AppDispatch>()
@@ -195,36 +194,17 @@ export function TradeImportDialog() {
           const res = await extractWithRetry(base64)
           if(res) {
             const items = res.data?.items || []
-            const currentYear = new Date().getFullYear()
-            const normalizeYear = (raw:string): string => {
-              if(!raw) return ''
-              const s = raw.trim()
-              if(/^\d{4}-/.test(s)) {
-                return s.replace(/^\d{4}/, String(currentYear))
-              }
-              if(/^\d{1,2}[-/]\d{1,2}/.test(s)) {
-                const std = s.replace(/\//g,'-')
-                return `${currentYear}-${std}`
-              }
-              // Attempt parse
-              const d = new Date(s)
-              if(!isNaN(d.getTime())) {
-                d.setFullYear(currentYear)
-                const pad = (n:number)=> String(n).padStart(2,'0')
-                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-              }
-              return s
-            }
             const importedTrades: ImportedTrade[] = items.map((t:any) => attachIdempotency({
               tradeId: uuidv4(),
               symbol: t.symbol || '',
               side: t.side || 'BUY',
-              openDate: normalizeYear(t.openDate || ''),
-              closeDate: normalizeYear(t.closeDate || ''),
+              openDate: t.openDate || '',
+              closeDate: t.closeDate || '',
               entry: round2(t.entryPrice ?? t.entry ?? 0),
               exit: round2(t.exitPrice ?? t.exit ?? 0),
               qty: t.quantity || t.qty || 0,
               pnl: round2(t.pnl ?? 0),
+              netPnl: round2(t.pnl ?? 0),
               status: t.status || ( (t.pnl??0) > 0 ? 'TP':'SL'),
               stopLoss: null,
               takeProfit: null,
@@ -403,6 +383,7 @@ export function TradeImportDialog() {
       commission: t.commission ?? null,
       fees: t.fees ?? null,
       riskAmount: t.riskAmount ?? null,
+      riskRewardRatio: t.riskRewardRatio ?? null,
       setupType: t.setupType ?? null,
       timeframe: t.timeframe ?? null,
       marketCondition: t.marketCondition ?? null,
@@ -421,7 +402,12 @@ export function TradeImportDialog() {
       economicEvents: t.economicEvents ?? [],
       tags: t.tags ?? [],
       status: 'CLOSED',
-      images: [],
+      images: (t.images||[]).slice(0,10).map(img => ({
+        id: img.id,
+        url: img.url,
+        timeframe: img.timeframe ?? null,
+        description: img.description ?? null
+      })),
     }))
     let created = 0, skipped: any[] = [], apiErrors: any[] = [], errorMsg: string | undefined
     try {
@@ -865,10 +851,11 @@ export function TradeImportDialog() {
                           {editingCell?.id === trade.tradeId && editingCell?.field === "qty" ? (
                             <Input
                               type="number"
-                              defaultValue={trade.qty}
+                              step="0.01"
+                              defaultValue={round2(trade.qty).toFixed(2)}
                               autoFocus
                               className="text-center"
-                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'qty', parseInt(e.target.value))}
+                              onBlur={(e)=>handleCellEdit(trade.tradeId||'', 'qty', parseFloat(e.target.value))}
                               onKeyDown={(e)=>{ if(e.key==='Enter') (e.target as HTMLInputElement).blur(); if(e.key==='Escape') setEditingCell(null); }}
                             />
                           ) : (
@@ -877,7 +864,7 @@ export function TradeImportDialog() {
                               title="Double-click to edit"
                               onClick={(e) => e.stopPropagation()}
                               onDoubleClick={(e)=>{ e.stopPropagation(); setEditingCell({ id: trade.tradeId||'', field:'qty'}); }}
-                            >{trade.qty}</div>
+                            >{round2(trade.qty).toFixed(2)}</div>
                           )}
                         </TableCell>
                         <TableCell className="w-[100px] text-center">
@@ -925,7 +912,45 @@ export function TradeImportDialog() {
                           )}
                         </TableCell>
                         <TableCell className="w-[90px] text-center">
-                          <Button variant="outline" size="sm" onClick={(e)=>{ e.stopPropagation(); setDetailTrade(trade); setIsDetailOpen(true); }}>
+                          <Button variant="outline" size="sm" onClick={(e)=>{ e.stopPropagation();
+                            // enrich minimal imported trade into shape expected by TradeJournalDialog
+                            const enriched: any = {
+                              ...trade,
+                              tradeId: (trade as any).tradeId || `${trade.symbol}-${trade.openDate}`,
+                              symbol: trade.symbol,
+                              side: (trade.side === 'BUY' || trade.side === 'SELL') ? trade.side : 'BUY',
+                              quantity: trade.qty ?? 0,
+                              openDate: trade.openDate,
+                              closeDate: trade.closeDate || null,
+                              entryPrice: trade.entry ?? null,
+                              exitPrice: trade.exit ?? null,
+                              status: trade.status || 'OPEN',
+                              stopLoss: trade.stopLoss ?? null,
+                              takeProfit: trade.takeProfit ?? null,
+                              commission: trade.commission ?? null,
+                              fees: trade.fees ?? null,
+                              riskAmount: trade.riskAmount ?? null,
+                              setupType: trade.setupType ?? null,
+                              timeframe: trade.timeframe ?? null,
+                              marketCondition: trade.marketCondition ?? null,
+                              tradingSession: trade.tradingSession ?? null,
+                              tradeGrade: trade.tradeGrade ?? null,
+                              confidence: trade.confidence ?? null,
+                              setupQuality: trade.setupQuality ?? null,
+                              execution: trade.execution ?? null,
+                              emotionalState: trade.emotionalState ?? null,
+                              preTradeNotes: trade.preTradeNotes ?? null,
+                              postTradeNotes: trade.postTradeNotes ?? null,
+                              mistakes: trade.mistakes ?? [],
+                              lessons: trade.lessons ?? [],
+                              newsEvents: trade.newsEvents ?? [],
+                              economicEvents: trade.economicEvents ?? [],
+                              tags: trade.tags ?? [],
+                              images: ((trade as any).images ?? []).map((img: any) => ({ id: img.id || img.url || Math.random().toString(36).slice(2), url: img.url, timeframe: img.timeframe || '', description: img.description || '' })),
+                              psychology: (trade as any).psychology || {},
+                              userId: 'local-import',
+                            };
+                            setJournalTrade(enriched); setIsJournalOpen(true); }}>
                             Edit
                           </Button>
                         </TableCell>
@@ -956,156 +981,68 @@ export function TradeImportDialog() {
               className="align-self-end gap-2"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSaving ? "Saving..." : "Save Changes"}
+      {isSaving ? "Saving..." : "Save"}
             </Button>
           )}
         </div>
       </DialogContent>
-      {/* Detail Drawer */}
-      <Drawer open={isDetailOpen} onOpenChange={(o)=>{ if(!o) { setIsDetailOpen(false); setDetailTrade(null);} }}>
-        <DrawerContent className="max-h-[92vh]">
-          <DrawerHeader className="pb-2">
-            <DrawerTitle className="text-base">Trade Details</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4 overflow-y-auto space-y-6">
-            {detailTrade && (
-              <>
-                <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {['symbol','side','openDate','closeDate','entry','exit','qty','pnl','status'].map(f => (
-                    <div key={f} className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
-                      <Input
-                        type={['entry','exit','qty','pnl'].includes(f)?'number':'text'}
-                        value={(detailTrade as any)[f] ?? ''}
-                        onChange={e=>{
-                          const val = ['entry','exit','qty','pnl'].includes(f)? parseFloat(e.target.value): e.target.value;
-                          setDetailTrade(dt=> dt? { ...dt, [f]: val }: dt);
-                        }}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  ))}
-                  {['stopLoss','takeProfit','commission','fees','riskAmount','confidence','setupQuality','execution'].map(f => (
-                    <div key={f} className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
-                      <Input
-                        type="number"
-                        value={(detailTrade as any)[f] ?? ''}
-                        onChange={e=>{
-                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
-                          setDetailTrade(dt=> dt? { ...dt, [f]: val }: dt);
-                        }}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  ))}
-                  {['setupType','timeframe','marketCondition','tradingSession','tradeGrade','emotionalState'].map(f => (
-                    <div key={f} className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground uppercase">{f}</label>
-                      <Input
-                        value={(detailTrade as any)[f] ?? ''}
-                        onChange={e=> setDetailTrade(dt=> dt? { ...dt, [f]: e.target.value || null }: dt)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  ))}
-                </section>
-                <Separator />
-                <section className="space-y-3">
-                  <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Psychology Flags</h4>
-                  <div className="grid grid-cols-3 gap-3">
-                    {['greed','fear','fomo','revenge','overconfidence','patience'].map(flag => (
-                      <label key={flag} className="flex items-center gap-2 text-xs">
-                        <Switch
-                          checked={!!detailTrade.psychology?.[flag as keyof typeof detailTrade.psychology]}
-                          onCheckedChange={(checked)=> setDetailTrade(dt=> dt? { ...dt, psychology: { ...(dt.psychology||{}), [flag]: checked } }: dt)}
-                        />
-                        <span className="capitalize">{flag}</span>
-                      </label>
-                    ))}
-                  </div>
-                </section>
-                <Separator />
-                <section className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase">Pre Trade Notes</label>
-                    <Textarea value={detailTrade.preTradeNotes || ''} onChange={e=> setDetailTrade(dt=> dt? { ...dt, preTradeNotes: e.target.value || null }: dt)} className="min-h-[80px] text-sm"/>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase">Post Trade Notes</label>
-                    <Textarea value={detailTrade.postTradeNotes || ''} onChange={e=> setDetailTrade(dt=> dt? { ...dt, postTradeNotes: e.target.value || null }: dt)} className="min-h-[80px] text-sm"/>
-                  </div>
-                </section>
-                <Separator />
-                <section className="grid md:grid-cols-2 gap-6">
-                  {['mistakes','lessons','newsEvents','economicEvents','tags'].map(listName => (
-                    <ArrayEditor
-                      key={listName}
-                      label={listName}
-                      values={(detailTrade as any)[listName] || []}
-                      onChange={(vals)=> setDetailTrade(dt=> dt? { ...dt, [listName]: vals }: dt)}
-                    />
-                  ))}
-                </section>
-              </>
-            )}
-          </div>
-          <DrawerFooter className="pt-2">
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={()=>{ setIsDetailOpen(false); setDetailTrade(null); }}>Cancel</Button>
-              <Button
-                onClick={()=>{
-                  if(!detailTrade) return;
-                  setTrades(ts => ts.map(t=> t.tradeId===detailTrade.tradeId ? attachIdempotency({ ...t, ...detailTrade }) : t));
-                  setIsDirty(true);
-                  setIsSaved(false);
-                  setIsDetailOpen(false);
-                }}
-              >Apply</Button>
-            </div>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      {/* Trade Journal Dialog for editing imports */}
+  <TradeJournalDialog
+        isOpen={isJournalOpen}
+        onClose={() => { setIsJournalOpen(false); setJournalTrade(null); }}
+        trade={journalTrade as any}
+    importMode
+  onSave={(updated: any) => {
+          // update local imported trades state and keep dialog open
+          setTrades(prev => prev.map(t => t.tradeId === updated.tradeId ? {
+            ...t,
+            symbol: updated.symbol,
+            side: updated.side,
+            openDate: updated.openDate,
+            closeDate: updated.closeDate || '',
+            entry: updated.entryPrice as number,
+            exit: updated.exitPrice as number,
+            pnl: updated.pnl as number,
+            netPnl: updated.netPnl as number,
+            qty: updated.quantity,
+            status: updated.status,
+            // preserve extended fields
+            ...{
+              stopLoss: updated.stopLoss,
+              takeProfit: updated.takeProfit,
+              commission: updated.commission,
+              fees: updated.fees,
+              riskAmount: updated.riskAmount,
+              setupType: updated.setupType,
+              timeframe: updated.timeframe,
+              marketCondition: updated.marketCondition,
+              tradingSession: updated.tradingSession,
+              tradeGrade: updated.tradeGrade,
+              confidence: updated.confidence,
+              setupQuality: updated.setupQuality,
+              execution: updated.execution,
+              emotionalState: updated.emotionalState,
+              preTradeNotes: updated.preTradeNotes,
+              postTradeNotes: updated.postTradeNotes,
+              mistakes: updated.mistakes,
+              lessons: updated.lessons,
+              newsEvents: updated.newsEvents,
+              economicEvents: updated.economicEvents,
+              tags: updated.tags,
+              images: updated.images.map((img: any) => ({ id: img.id, url: img.url, timeframe: img.timeframe || '', description: img.description || '' })),
+              psychology: updated.psychology || t.psychology || {},
+              riskRewardRatio: updated.riskRewardRatio ?? t.riskRewardRatio ?? null,
+            }
+          } as any : t));
+          // update currently edited trade reference so dialog re-renders with latest baseline
+          setJournalTrade(updated);
+          setIsDirty(true);
+          setIsSaved(false);
+        }}
+      />
     </Dialog>
   );
 }
 
 // Lightweight array editor component for chip-style list inputs
-function ArrayEditor({ label, values, onChange }: { label: string; values: string[]; onChange: (vals:string[])=>void }) {
-  const [input, setInput] = useState('');
-  const add = () => {
-    const trimmed = input.trim();
-    if(!trimmed) return;
-    if(values.includes(trimmed)) { setInput(''); return; }
-    onChange([...values, trimmed]);
-    setInput('');
-  };
-  return (
-    <div className="space-y-2">
-      <label className="text-xs font-medium text-muted-foreground uppercase flex items-center justify-between">
-        <span>{label}</span>
-        {values.length>0 && <span className="text-[10px] font-normal">{values.length}</span>}
-      </label>
-      <div className="flex flex-wrap gap-1">
-        {values.map(v => (
-          <Badge key={v} variant="secondary" className="text-[10px] px-2 py-0.5 flex items-center gap-1">
-            {v}
-            <button type="button" className="ml-1 text-[10px] hover:text-destructive" onClick={()=> onChange(values.filter(x=>x!==v))}>×</button>
-          </Badge>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <Input
-          placeholder={`Add ${label}`}
-          value={input}
-          onChange={e=> setInput(e.target.value)}
-          onKeyDown={e=> { if(e.key==='Enter'){ e.preventDefault(); add(); }}}
-          className="h-8 text-sm"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={add}>Add</Button>
-      </div>
-    </div>
-  );
-}
-
-// Draft persistence component removed (requirement: start clean on reopen)
+// Removed ArrayEditor component as it was unused
