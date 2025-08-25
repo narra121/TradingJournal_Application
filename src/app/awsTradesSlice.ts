@@ -20,6 +20,30 @@ interface AwsTradesState {
 
 const initialState: AwsTradesState = { items: [], status: 'idle', error: null, lastFetched: null, optimistic: {}, extract: { status: 'idle', error: null } }
 
+// Helper: round all numeric fields we care about to two decimals (quantity, prices, fees, metrics, scores)
+function roundTwo(n: any): number | null | undefined {
+  if (n === null || n === undefined || n === '') return n;
+  const num = Number(n);
+  if (!Number.isFinite(num)) return null;
+  return Math.round(num * 100) / 100;
+}
+function normalizeCreate(body: ApiTradeCreate): ApiTradeCreate {
+  return {
+    ...body,
+    quantity: roundTwo(body.quantity) as number, // required field
+    entryPrice: roundTwo(body.entryPrice),
+    exitPrice: roundTwo(body.exitPrice),
+    stopLoss: roundTwo(body.stopLoss),
+    takeProfit: roundTwo(body.takeProfit),
+    commission: roundTwo(body.commission),
+    fees: roundTwo(body.fees),
+    riskAmount: roundTwo(body.riskAmount),
+    confidence: roundTwo(body.confidence),
+    setupQuality: roundTwo(body.setupQuality),
+    execution: roundTwo(body.execution),
+  }
+}
+
 export const listTrades = createAsyncThunk('awsTrades/list', async (params: { symbol?: string; status?: string; startDate?: string; endDate?: string } | undefined, { getState, rejectWithValue }) => {
   try {
     const state = getState() as RootState
@@ -35,7 +59,8 @@ export const createTrade = createAsyncThunk('awsTrades/create', async (body: Api
     const state = getState() as RootState
     const token = state.AwsAuth.idToken
     if (!token) throw new Error('Not authenticated')
-  const trade = await apiCreateTrade({ ...body, clientRequestId: uuidv4(), idempotencyKey: (body as any).idempotencyKey || uuidv4() } as any, token)
+    const normalized = normalizeCreate(body)
+  const trade = await apiCreateTrade({ ...normalized, clientRequestId: uuidv4(), idempotencyKey: (body as any).idempotencyKey || uuidv4() } as any, token)
     return trade
   } catch (e: any) { return rejectWithValue(e.message || 'Create failed') }
 })
@@ -45,7 +70,10 @@ export const createTradesBulk = createAsyncThunk('awsTrades/createBulk', async (
     const state = getState() as RootState
     const token = state.AwsAuth.idToken
     if (!token) throw new Error('Not authenticated')
-    const payload = items.map(i => ({ ...i, clientRequestId: uuidv4(), idempotencyKey: (i as any).idempotencyKey || uuidv4() })) as any
+    const payload = items.map(i => {
+      const normalized = normalizeCreate(i)
+      return { ...normalized, clientRequestId: uuidv4(), idempotencyKey: (i as any).idempotencyKey || uuidv4() }
+    }) as any
   const res: any = await apiCreateTradesBulk(payload, token)
   return res // full envelope { data:{ created, skipped, errors, items[] }, error, meta }
   } catch (e:any) { return rejectWithValue(e.message || 'Bulk create failed') }
