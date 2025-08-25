@@ -670,9 +670,10 @@ export function TradeImportDialog() {
 
           {trades.length > 0 && (
             <div
-              className="border rounded-lg flex flex-col min-h-0"
+              className="border rounded-lg flex flex-col"
+              // style={{ height: "calc(60vh - 2rem)" }}
             >
-              <div className="flex justify-end p-2 gap-2 shrink-0">
+              <div className="flex justify-end p-2 gap-2">
                 <Button variant="outline" onClick={handleMergeTrades}>
                   {"(" +
                     trades.filter((trade) => trade.selected).length +
@@ -684,37 +685,36 @@ export function TradeImportDialog() {
                     ") Delete"}
                 </Button>
               </div>
-              <div className="flex-1 min-h-0 overflow-auto overflow-x-auto">
-                <div className="min-w-[1100px]">
-                  <div className="bg-white border-b sticky top-0 z-10">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="text-center bg-white">
-                          <TableHead className="w-[20px] text-center"></TableHead>
-                          <TableHead className="w-[160px] text-center">Open Date</TableHead>
-                          <TableHead className="w-[160px] text-center">Close Date</TableHead>
-                          <TableHead className="w-[100px] text-center">Symbol</TableHead>
-                          <TableHead className="w-[80px] text-center">Side</TableHead>
-                          <TableHead className="w-[100px] text-center">Entry</TableHead>
-                          <TableHead className="w-[100px] text-center">Exit</TableHead>
-                          <TableHead className="w-[100px] text-center">Quantity</TableHead>
-                          <TableHead className="w-[100px] text-center">P&L</TableHead>
-                          <TableHead className="w-[100px] text-center">Status</TableHead>
-                          <TableHead className="w-[90px] text-center">Details</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                    </Table>
-                  </div>
-                  <div
-                    className="max-h-[50vh] overflow-auto"
-                    onClick={(e) => {
-                      if (editingCell && e.target === e.currentTarget) {
-                        setEditingCell(null);
-                      }
-                    }}
-                  >
-                    <Table>
-                      <TableBody>
+              <div className="bg-white border-b">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-center">
+                      <TableHead className="w-[20px] text-center"></TableHead>
+                      <TableHead className="w-[160px] text-center">Open Date</TableHead>
+                      <TableHead className="w-[160px] text-center">Close Date</TableHead>
+                      <TableHead className="w-[100px] text-center">Symbol</TableHead>
+                      <TableHead className="w-[80px] text-center">Side</TableHead>
+                      <TableHead className="w-[100px] text-center">Entry</TableHead>
+                      <TableHead className="w-[100px] text-center">Exit</TableHead>
+                      <TableHead className="w-[100px] text-center">Quantity</TableHead>
+                      <TableHead className="w-[100px] text-center">P&L</TableHead>
+                      <TableHead className="w-[100px] text-center">Status</TableHead>
+                      <TableHead className="w-[90px] text-center">Details</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                </Table>
+              </div>
+              <div
+                className="overflow-auto h-[30vh]"
+                onClick={(e) => {
+                  // Only close editing if clicking on the container itself, not its children
+                  if (editingCell && e.target === e.currentTarget) {
+                    setEditingCell(null);
+                  }
+                }}
+              >
+                <Table>
+                  <TableBody>
                     {trades.map((trade) => (
                       <TableRow key={trade.tradeId} className="text-center">
                         <TableCell className="w-[20px] text-center">
@@ -956,10 +956,8 @@ export function TradeImportDialog() {
                         </TableCell>
                       </TableRow>
                     ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
