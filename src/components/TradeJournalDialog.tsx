@@ -221,20 +221,29 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   }, [touched, psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
 
   const emotionalStates = [
-    "Calm",
-    "Anxious",
-    "Excited",
-    "Fearful",
     "Confident",
+    "Calm",
+    "Fearful",
+    "Excited",
+    "Frustrated",
+    "Hopeful",
+    "Stressed",
+    "Indecisive",
+    "Disciplined",
+    "Impatient",
+    "Greedy",
+    "Revengeful",
+    "Satisfied",
+    "Overwhelmed",
+    "Focused",
+    "Distracted",
+    "Neutral",
   ];
   const setupTypes = [
-    "Breakout",
-    "Pullback",
-    "Trend Following",
-    "Counter-trend",
-    "Range",
+    "Blads Candle Close",
+    "Blad's Candle Break",
   ];
-  const sessions = ["Pre-market", "Regular", "After-hours"];
+  const sessions = ["Asian", "London", "New York", "Sydney"];
   const marketConditions = ["Trending", "Ranging", "Volatile", "Calm"];
   const tradeMistakes = [
     "Early Entry",
