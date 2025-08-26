@@ -306,32 +306,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       const feesNum = toNum(core.fees); // may be null or number
       const initialCommissionNum = toNum(initialCore.commission);
       const initialFeesNum = toNum(initialCore.fees);
-      // PnL derivation rules:
-      // - In import/local mode we keep an existing pnl the user already adjusted unless core price fields changed.
-      // - In persisted mode always recompute if we have entry/exit/qty and status CLOSED.
-      // - Use absolute quantity to avoid negative qty influencing sign (side already encodes direction).
-      const qtyAbs = Math.abs(qtyNum || 0);
-      const shouldRecalcPnL = (
-        core.status === 'CLOSED' &&
-        entryNum !== null && exitNum !== null && qtyAbs > 0 && (
-          !importMode || // normal edit always recompute
-          importMode && (
-            entryNum !== toNum(initialCore.entryPrice) ||
-            exitNum !== toNum(initialCore.exitPrice) ||
-            qtyNum !== toNum(initialCore.quantity)
-          )
-        )
-      );
+      // PnL preservation rule:
+      // - Never recalculate PnL; always preserve existing values from tradeData
       let pnlDerived: number | null = tradeData.pnl ?? null;
-      if (shouldRecalcPnL) {
-        const rawMove = core.side === 'BUY' ? (exitNum! - entryNum!) : (entryNum! - exitNum!);
-        const raw = rawMove * qtyAbs;
-        pnlDerived = Math.round(raw * 100) / 100;
-      }
       const commissionChanged = commissionNum !== initialCommissionNum;
       const feesChanged = feesNum !== initialFeesNum;
       let netPnlDerived: number | null = tradeData.netPnl ?? null;
-      if (pnlDerived !== null && (shouldRecalcPnL || commissionChanged || feesChanged)) {
+      if (pnlDerived !== null && (commissionChanged || feesChanged)) {
         netPnlDerived = Math.round((pnlDerived - (commissionNum ?? 0) - (feesNum ?? 0)) * 100) / 100;
       }
       // Round risk amount consistently
