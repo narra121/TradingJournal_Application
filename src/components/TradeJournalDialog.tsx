@@ -97,9 +97,15 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   // preserve original date-time strings for import mode so we don't lose time component
   const rawOpenDateRef = useRef<string | null>(null);
   const rawCloseDateRef = useRef<string | null>(null);
+  // Track last initialized tradeId to avoid wiping user-edited meta arrays when the same trade object updates in store
+  const lastInitTradeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen && tradeData) {
+      // Guard: only initialize when opening or switching to a different tradeId
+      if (lastInitTradeIdRef.current === tradeData.tradeId) {
+        return;
+      }
       // Always clear previous images to avoid leakage across different trades
       setImages([]);
       setInitialImagesState([]);
@@ -196,11 +202,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       setInitialMetrics(newMetrics);
   setInitialCore(newCore);
   setTouched(false);
+  lastInitTradeIdRef.current = tradeData.tradeId;
   // snapshot refreshed
     } else if (!isOpen) {
       setImages([]);
       setInitialImagesState([]);
       setTouched(false);
+  lastInitTradeIdRef.current = null;
     }
   }, [isOpen, tradeData]);
 
@@ -284,17 +292,41 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       const entryNum = toNum(core.entryPrice);
       const exitNum = toNum(core.exitPrice);
       const qtyNum = toNum(core.quantity) ?? 0;
-      const commissionNum = toNum(core.commission) ?? 0;
-      const feesNum = toNum(core.fees) ?? 0;
+      // Preserve explicit 0 vs null for commission / fees; don't coerce null -> 0 here
+      const commissionNum = toNum(core.commission); // may be null or number
+      const feesNum = toNum(core.fees); // may be null or number
+      const initialCommissionNum = toNum(initialCore.commission);
+      const initialFeesNum = toNum(initialCore.fees);
+      // PnL derivation rules:
+      // - In import/local mode we keep an existing pnl the user already adjusted unless core price fields changed.
+      // - In persisted mode always recompute if we have entry/exit/qty and status CLOSED.
+      // - Use absolute quantity to avoid negative qty influencing sign (side already encodes direction).
+      const qtyAbs = Math.abs(qtyNum || 0);
+      const shouldRecalcPnL = (
+        core.status === 'CLOSED' &&
+        entryNum !== null && exitNum !== null && qtyAbs > 0 && (
+          !importMode || // normal edit always recompute
+          importMode && (
+            entryNum !== toNum(initialCore.entryPrice) ||
+            exitNum !== toNum(initialCore.exitPrice) ||
+            qtyNum !== toNum(initialCore.quantity)
+          )
+        )
+      );
       let pnlDerived: number | null = tradeData.pnl ?? null;
-      if (entryNum !== null && exitNum !== null && qtyNum && core.status === 'CLOSED') {
-        const raw = core.side === 'BUY' ? (exitNum - entryNum) * qtyNum : (entryNum - exitNum) * qtyNum;
+      if (shouldRecalcPnL) {
+        const rawMove = core.side === 'BUY' ? (exitNum! - entryNum!) : (entryNum! - exitNum!);
+        const raw = rawMove * qtyAbs;
         pnlDerived = Math.round(raw * 100) / 100;
       }
+      const commissionChanged = commissionNum !== initialCommissionNum;
+      const feesChanged = feesNum !== initialFeesNum;
       let netPnlDerived: number | null = tradeData.netPnl ?? null;
-      if (pnlDerived !== null) {
-        netPnlDerived = Math.round((pnlDerived - commissionNum - feesNum) * 100) / 100;
+      if (pnlDerived !== null && (shouldRecalcPnL || commissionChanged || feesChanged)) {
+        netPnlDerived = Math.round((pnlDerived - (commissionNum ?? 0) - (feesNum ?? 0)) * 100) / 100;
       }
+      // Round risk amount consistently
+      const riskAmountNum = toNum(metrics.riskAmount);
 
       const updatedTrade: ApiTrade = {
         ...tradeData,
@@ -308,8 +340,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         exitPrice: exitNum,
         stopLoss: toNum(core.stopLoss),
         takeProfit: toNum(core.takeProfit),
-        commission: commissionNum || null,
-        fees: feesNum || 0,
+  commission: commissionNum,
+  fees: feesNum,
         timeframe: core.timeframe || null,
         tradeGrade: core.tradeGrade ?? null,
         confidence: core.confidence ?? null,
@@ -327,10 +359,10 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         postTradeNotes: psychology.notes || null,
         riskRewardRatio: analysis.riskRewardRatio ?? null,
         setupType: analysis.setupType || null,
-        riskAmount: metrics.riskAmount ?? null,
+  riskAmount: riskAmountNum,
         marketCondition: metrics.marketCondition ?? null,
         tradingSession: metrics.tradingSession ?? null,
-        pnl: pnlDerived ?? undefined,
+  pnl: pnlDerived ?? tradeData.pnl ?? undefined,
         netPnl: netPnlDerived ?? undefined,
   remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
   realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
@@ -357,43 +389,43 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       }
   // lists already arrays
   const changes: any = {
-        symbol: core.symbol,
-        side: core.side,
-        status: core.status,
-        quantity: qtyNum,
-        openDate: core.openDate,
-        closeDate: core.closeDate || null,
-        entryPrice: entryNum,
-        exitPrice: exitNum,
-        stopLoss: toNum(core.stopLoss),
-        takeProfit: toNum(core.takeProfit),
-        commission: commissionNum || null,
-        fees: feesNum || 0,
-        timeframe: core.timeframe || null,
-        tradeGrade: core.tradeGrade || null,
-        confidence: core.confidence ?? null,
-        setupQuality: core.setupQuality ?? null,
-        execution: core.execution ?? null,
-        preTradeNotes: psychology.preNotes || null,
-        lessons,
-        newsEvents,
-        economicEvents,
-        tags,
-        images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
-        psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
-        emotionalState: psychology.emotionalState || null,
-        postTradeNotes: psychology.notes || null,
-        riskRewardRatio: analysis.riskRewardRatio ?? null,
-        setupType: analysis.setupType || null,
-        mistakes: analysis.mistakes || [],
-        riskAmount: metrics.riskAmount ?? null,
-        marketCondition: metrics.marketCondition || null,
-        tradingSession: metrics.tradingSession || null,
-        pnl: pnlDerived ?? undefined,
-        netPnl: netPnlDerived ?? undefined,
-        remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
-        realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
-      }
+    symbol: core.symbol,
+    side: core.side,
+    status: core.status,
+    quantity: qtyNum,
+    openDate: preservedOpen,
+    closeDate: preservedClose,
+    entryPrice: entryNum,
+    exitPrice: exitNum,
+    stopLoss: toNum(core.stopLoss),
+    takeProfit: toNum(core.takeProfit),
+    commission: commissionNum,
+    fees: feesNum,
+    timeframe: core.timeframe || null,
+    tradeGrade: core.tradeGrade || null,
+    confidence: core.confidence ?? null,
+    setupQuality: core.setupQuality ?? null,
+    execution: core.execution ?? null,
+    preTradeNotes: psychology.preNotes || null,
+    lessons,
+    newsEvents,
+    economicEvents,
+    tags,
+    images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+    psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
+    emotionalState: psychology.emotionalState || null,
+    postTradeNotes: psychology.notes || null,
+    riskRewardRatio: analysis.riskRewardRatio ?? null,
+    setupType: analysis.setupType || null,
+    mistakes: analysis.mistakes || [],
+    riskAmount: riskAmountNum,
+    marketCondition: metrics.marketCondition || null,
+    tradingSession: metrics.tradingSession || null,
+  pnl: pnlDerived ?? tradeData.pnl ?? undefined,
+    netPnl: netPnlDerived ?? undefined,
+    remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
+    realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
+  }
   await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes })).unwrap()
   // After successful API update, clear any cached local images (now source of truth is backend)
   try { localStorage.removeItem(`journalImages:${tradeData.tradeId}`) } catch {}

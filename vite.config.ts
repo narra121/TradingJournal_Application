@@ -1,3 +1,21 @@
+// Polyfill crypto.getRandomValues before any imports that might need it
+try {
+  const { webcrypto } = require('node:crypto');
+  if (!globalThis.crypto) {
+    (globalThis as any).crypto = webcrypto;
+  }
+} catch (e) {
+  // Fallback for older Node versions
+  try {
+    const crypto = require('crypto');
+    if (!globalThis.crypto) {
+      (globalThis as any).crypto = {
+        getRandomValues: (arr: any) => crypto.randomFillSync(arr)
+      };
+    }
+  } catch {}
+}
+
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
