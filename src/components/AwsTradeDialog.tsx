@@ -13,7 +13,7 @@ interface AwsTradeDialogProps { open: boolean; onOpenChange: (open: boolean) => 
 
 type FormState = Partial<ApiTradeCreate & { tradeId?: string }>
 
-const initialForm: FormState = { symbol: '', side: 'BUY', quantity: undefined, openDate: new Date().toISOString().slice(0,10), entryPrice: undefined, stopLoss: undefined, takeProfit: undefined, setupType: '', preTradeNotes: '', postTradeNotes: '', commission: undefined, fees: undefined, riskAmount: undefined }
+const initialForm: FormState = { symbol: '', side: 'BUY', quantity: undefined, openDate: new Date().toISOString().slice(0,10), entryPrice: undefined, stopLoss: undefined, takeProfit: undefined, setupType: '', preTradeNotes: '', postTradeNotes: '', commission: undefined, fees: undefined, riskAmount: undefined, riskRewardRatio: undefined, achievedRiskRewardRatio: undefined }
 
 export function AwsTradeDialog({ open, onOpenChange, trade }: AwsTradeDialogProps) {
   const dispatch = useDispatch<AppDispatch>()
@@ -32,8 +32,8 @@ export function AwsTradeDialog({ open, onOpenChange, trade }: AwsTradeDialogProp
       // If not cached, trigger fetch (simple list refresh) – could be replaced with dedicated get endpoint
       if (!existing) dispatch(listTrades(undefined))
       const src = existing || trade
-      const { tradeId, symbol, side, quantity, openDate, entryPrice, stopLoss, takeProfit, setupType, preTradeNotes, postTradeNotes, commission, fees, riskAmount } = src
-  setForm({ tradeId, symbol, side, quantity, openDate: openDate?.slice(0,10) || '', entryPrice: entryPrice ?? undefined, stopLoss: stopLoss ?? undefined, takeProfit: takeProfit ?? undefined, setupType: setupType ?? '', preTradeNotes: preTradeNotes ?? '', postTradeNotes: postTradeNotes ?? '', commission: commission ?? undefined, fees: fees ?? undefined, riskAmount: riskAmount ?? undefined })
+    const { tradeId, symbol, side, quantity, openDate, entryPrice, stopLoss, takeProfit, setupType, preTradeNotes, postTradeNotes, commission, fees, riskAmount, riskRewardRatio, achievedRiskRewardRatio } = src
+  setForm({ tradeId, symbol, side, quantity, openDate: openDate?.slice(0,10) || '', entryPrice: entryPrice ?? undefined, stopLoss: stopLoss ?? undefined, takeProfit: takeProfit ?? undefined, setupType: setupType ?? '', preTradeNotes: preTradeNotes ?? '', postTradeNotes: postTradeNotes ?? '', commission: commission ?? undefined, fees: fees ?? undefined, riskAmount: riskAmount ?? undefined, riskRewardRatio: riskRewardRatio ?? undefined, achievedRiskRewardRatio: achievedRiskRewardRatio ?? undefined })
       setTags((src.tags || []).join(','))
       setPsychology(src.psychology || {})
     } else {
@@ -77,6 +77,8 @@ export function AwsTradeDialog({ open, onOpenChange, trade }: AwsTradeDialogProp
         commission: form.commission ?? undefined,
         fees: form.fees ?? undefined,
         riskAmount: form.riskAmount ?? undefined,
+        riskRewardRatio: form.riskRewardRatio ?? undefined,
+        achievedRiskRewardRatio: form.achievedRiskRewardRatio ?? undefined,
         tags: tags.split(',').map(t=>t.trim()).filter(Boolean),
         psychology: psychology,
       }
@@ -96,6 +98,8 @@ export function AwsTradeDialog({ open, onOpenChange, trade }: AwsTradeDialogProp
         commission: form.commission ?? undefined,
         fees: form.fees ?? undefined,
         riskAmount: form.riskAmount ?? undefined,
+        riskRewardRatio: form.riskRewardRatio ?? undefined,
+        achievedRiskRewardRatio: form.achievedRiskRewardRatio ?? undefined,
         tags: tags.split(',').map(t=>t.trim()).filter(Boolean),
         psychology: psychology,
         images: [],
@@ -170,6 +174,14 @@ export function AwsTradeDialog({ open, onOpenChange, trade }: AwsTradeDialogProp
             <div>
               <label className="text-xs font-medium">Risk Amount</label>
               <Input type="number" step="0.01" value={form.riskAmount ?? ''} onChange={e=>update('riskAmount', e.target.value === '' ? undefined : Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Planned RR</label>
+              <Input type="number" step="0.01" value={form.riskRewardRatio ?? ''} onChange={e=>update('riskRewardRatio', e.target.value === '' ? undefined : Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Achieved RR</label>
+              <Input type="number" step="0.01" value={form.achievedRiskRewardRatio ?? ''} onChange={e=>update('achievedRiskRewardRatio', e.target.value === '' ? undefined : Number(e.target.value))} />
             </div>
             <div className="col-span-2">
               <label className="text-xs font-medium">Tags (comma separated)</label>

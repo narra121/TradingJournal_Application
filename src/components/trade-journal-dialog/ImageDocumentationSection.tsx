@@ -1,5 +1,5 @@
 import { Upload, Trash2, Plus, Pencil, Image as ImageIcon } from "lucide-react";
-import { useState, Dispatch, SetStateAction, useRef, ClipboardEvent } from 'react'
+import { useState, Dispatch, SetStateAction, ClipboardEvent } from 'react'
 import { ImageType } from "@/app/types";
 import { Button } from '@/ui/button';
 import { Textarea } from '@/ui/textarea';
@@ -20,7 +20,6 @@ interface ImageDocumentationSectionProps {
 export function ImageDocumentationSection({ images, setImages, onDirty }: ImageDocumentationSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const timeframeOptions = ['1m','5m','15m','30m','1H','4H','Daily','Weekly']
   const MAX_IMAGES = 10
@@ -88,6 +87,11 @@ export function ImageDocumentationSection({ images, setImages, onDirty }: ImageD
     onDirty()
   }
 
+  const clearImageFile = (idx: number) => {
+    setImages((imgs: ImageType[]) => imgs.map((img, i) => i === idx ? { ...img, url: '' } : img))
+    onDirty()
+  }
+
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-card">
       <div className="flex items-center justify-between">
@@ -102,6 +106,7 @@ export function ImageDocumentationSection({ images, setImages, onDirty }: ImageD
       <div className="space-y-6">
         {images.map((img, idx) => {
           const isEditing = editingIndex === idx
+          const inputId = `image-input-${img.id || idx}`
           return (
             <div key={img.id || idx} className="border rounded-md p-4 space-y-4 relative group bg-muted/20">
               <div className="flex justify-between items-start">
@@ -135,25 +140,38 @@ export function ImageDocumentationSection({ images, setImages, onDirty }: ImageD
                   <label className="text-[11px] font-medium uppercase tracking-wide">Image</label>
                   <div
                     className="relative border rounded-md bg-background flex items-center justify-center overflow-hidden cursor-pointer h-60"
-                    onClick={()=> { if(isEditing) fileInputRef.current?.click() }}
+                    onClick={()=> {
+                      // Always allow selecting; set current editing row then trigger file input
+                      if(!isEditing) setEditingIndex(idx);
+                      const input = document.getElementById(inputId) as HTMLInputElement | null;
+                      input?.click();
+                    }}
                   >
                     {img.url ? (
                       <img src={img.url} alt={img.description || ''} className="object-contain w-full h-full" />
-                    ) : isEditing ? (
-                      <div className="flex flex-col items-center text-muted-foreground text-xs">
-                        <ImageIcon className="w-8 h-8 mb-2 opacity-60" />
-                        <span>Click or Paste to Upload</span>
-                      </div>
                     ) : (
-                      <div className="text-[10px] text-muted-foreground">No image</div>
+                      <div className="flex flex-col items-center text-muted-foreground text-xs select-none">
+                        <ImageIcon className="w-8 h-8 mb-2 opacity-60" />
+                        <span>{isEditing ? 'Click / Paste to Upload' : 'Click to Upload'}</span>
+                      </div>
                     )}
                     <input
-                      ref={fileInputRef}
+                      id={inputId}
                       type="file"
                       accept="image/*"
                       className="hidden"
                       onChange={e=>{ const f=e.target.files?.[0]; if(f) void handleFileSelectForIndex(f, idx) }}
                     />
+                    {isEditing && img.url && (
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        <Button type="button" size="sm" variant="secondary" className="h-6 text-[10px] px-2"
+                          onClick={(e)=>{ e.stopPropagation(); clearImageFile(idx); }}
+                        >Remove</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-6 text-[10px] px-2"
+                          onClick={(e)=>{ e.stopPropagation(); const input = document.getElementById(inputId) as HTMLInputElement | null; input?.click(); }}
+                        >Replace</Button>
+                      </div>
+                    )}
                   </div>
                   {isUploading && isEditing && <p className="text-[10px] text-muted-foreground mt-1">Processing image...</p>}
                 </div>

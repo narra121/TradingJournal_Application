@@ -59,5 +59,7 @@ export async function apiRequest<T = any>(path: string, opts: RequestOptions = {
 
 export const apiGet = <T=any>(path: string, opts: RequestOptions = {}) => apiRequest<T>(path, { ...opts, method: 'GET' })
 export const apiPost = <T=any>(path: string, body?: any, opts: RequestOptions = {}) => apiRequest<T>(path, { ...opts, method: 'POST', body: JSON.stringify(body) })
-export const apiPut = <T=any>(path: string, body?: any, opts: RequestOptions = {}) => apiRequest<T>(path, { ...opts, method: 'PUT', body: JSON.stringify(body) })
+export const apiPut = <T=any>(path: string, body?: any, opts: RequestOptions = {}) => {
+  return apiRequest<T>(path, { ...opts, method: 'PUT', body: JSON.stringify(body) })
+}
 export const apiDelete = <T=any>(path: string, opts: RequestOptions = {}) => apiRequest<T>(path, { ...opts, method: 'DELETE' })

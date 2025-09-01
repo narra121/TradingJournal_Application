@@ -38,6 +38,8 @@ function normalizeCreate(body: ApiTradeCreate): ApiTradeCreate {
     commission: roundTwo(body.commission),
     fees: roundTwo(body.fees),
     riskAmount: roundTwo(body.riskAmount),
+  riskRewardRatio: roundTwo(body.riskRewardRatio),
+  achievedRiskRewardRatio: roundTwo(body.achievedRiskRewardRatio),
     confidence: roundTwo(body.confidence),
     setupQuality: roundTwo(body.setupQuality),
     execution: roundTwo(body.execution),

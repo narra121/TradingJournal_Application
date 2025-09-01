@@ -40,7 +40,9 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   const dispatch: AppDispatch = useDispatch();
   const [images, setImages] = useState<ImageType[]>([]);
   const [psychology, setPsychology] = useState<PsychologyState>({ greed: false, fomo: false, revenge: false, fear:false, overconfidence:false, patience:false, emotionalState: '', preNotes: '', notes: '' });
-  const [analysis, setAnalysis] = useState<AnalysisState>({ riskRewardRatio: null, setupType: '', mistakes: [] });
+  const [analysis, setAnalysis] = useState<AnalysisState>({ riskRewardRatio: null, setupType: '', mistakes: [] }); // analysis.riskRewardRatio will represent expected RR
+    const [achievedRR, setAchievedRR] = useState<number | null>(null);
+    const [initialAchievedRR, setInitialAchievedRR] = useState<number | null>(null);
   const [metrics, setMetrics] = useState<MetricsState>({ riskAmount: null, marketCondition: '', tradingSession: '' });
 
   // Additional core trade editable state (fields not covered by existing sub-sections)
@@ -85,7 +87,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
 
   const [isSaving, setIsSaving] = useState(false);
   const [touched, setTouched] = useState(false);
-  const isLocalEditable = importMode || !!onSave; // when true allow editing of core & price fields
+  const isLocalEditable = true; // always editable per new requirement
   // isSaved removed (rely on isDirty + isSaving)
 
   // selectedtradeDetails is now passed as a prop
@@ -147,12 +149,11 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         notes: tradeData.postTradeNotes || ''
       }
       const newAnalysis: AnalysisState = {
-        riskRewardRatio: tradeData.riskRewardRatio ?? null,
-        // Normalize to lowercase because selection list uses lowercase values
+  riskRewardRatio: tradeData.riskRewardRatio ?? null,
         setupType: (tradeData.setupType || '').toLowerCase(),
-        // Mistakes stored lowercase in checkbox logic; convert to lowercase array
         mistakes: (tradeData.mistakes || []).map(m => (m || '').toLowerCase()).filter(Boolean)
       }
+      const derivedAchieved = tradeData.achievedRiskRewardRatio ?? (tradeData.riskAmount ? (tradeData.pnl ?? 0) / (tradeData.riskAmount || 1) : null);
       const newMetrics: MetricsState = {
         riskAmount: tradeData.riskAmount ?? null,
         marketCondition: (tradeData.marketCondition || '').toLowerCase(),
@@ -192,13 +193,15 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       // Apply state
       setImages(newImages);
       setPsychology(newPsychology);
-      setAnalysis(newAnalysis);
+  setAnalysis(newAnalysis);
+  setAchievedRR(derivedAchieved);
       setMetrics(newMetrics);
       setCore(newCore);
       // Store baselines
       setInitialImagesState(newImages);
       setInitialPsychology(newPsychology);
-      setInitialAnalysis(newAnalysis);
+  setInitialAnalysis(newAnalysis);
+  setInitialAchievedRR(derivedAchieved);
       setInitialMetrics(newMetrics);
   setInitialCore(newCore);
   setTouched(false);
@@ -215,10 +218,10 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   const isDirty = useMemo(() => {
     if (!tradeData) return false;
     if (touched) return true;
-    const currentComposite = JSON.stringify({ psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags });
-    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags });
+    const currentComposite = JSON.stringify({ psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags });
+  const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, achievedRR: initialAchievedRR, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags });
     return currentComposite !== initialComposite;
-  }, [touched, psychology, analysis, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
+  }, [touched, psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialAchievedRR, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
 
   const emotionalStates = [
     "Confident",
@@ -346,8 +349,9 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         psychology: { ...psychology },
         images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
         emotionalState: psychology.emotionalState || null,
-        postTradeNotes: psychology.notes || null,
-        riskRewardRatio: analysis.riskRewardRatio ?? null,
+  postTradeNotes: psychology.notes || null,
+  riskRewardRatio: analysis.riskRewardRatio ?? null,
+  achievedRiskRewardRatio: achievedRR,
         setupType: analysis.setupType || null,
   riskAmount: riskAmountNum,
         marketCondition: metrics.marketCondition ?? null,
@@ -405,7 +409,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
     psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
     emotionalState: psychology.emotionalState || null,
     postTradeNotes: psychology.notes || null,
-    riskRewardRatio: analysis.riskRewardRatio ?? null,
+  riskRewardRatio: analysis.riskRewardRatio ?? null,
+  achievedRiskRewardRatio: achievedRR,
     setupType: analysis.setupType || null,
     mistakes: analysis.mistakes || [],
     riskAmount: riskAmountNum,
@@ -423,8 +428,10 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   setInitialPsychology(psychology);
       setInitialAnalysis(analysis);
       setInitialMetrics(metrics);
-      setInitialImagesState(updatedImages);
+  setInitialImagesState(updatedImages);
+  setInitialAchievedRR(achievedRR);
   setInitialCore(core)
+      setInitialAchievedRR(achievedRR);
       setInitialLessons(lessons);
       setInitialNewsEvents(newsEvents);
       setInitialEconomicEvents(economicEvents);
@@ -521,7 +528,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
           <div className="flex gap-6 p-6">
             <div className="w-1/4 space-y-6">
               <div className="space-y-4 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Core {isLocalEditable ? '(Editable)' : '(Read Only)'}</h4>
+                <h4 className="font-medium text-sm">Core (Editable)</h4>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="space-y-1"><Label>Symbol</Label>{isLocalEditable ? <Input value={core.symbol} onChange={e=>{ setCore(c=>({...c,symbol:e.target.value})); markDirty(); }} /> : <div className="rounded bg-muted px-2 py-1 font-mono text-xs">{core.symbol}</div>}</div>
                   <div className="space-y-1"><Label>Side</Label>{isLocalEditable ? (
@@ -531,9 +538,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
                     </Select>
                   ) : <div className="rounded bg-muted px-2 py-1 text-xs">{core.side}</div>}</div>
                   <div className="space-y-1"><Label>Status</Label>{isLocalEditable ? (
-                    <Select value={core.status} onValueChange={v=>{ setCore(c=>({...c,status:v as TradeStatus})); markDirty(); }}>
+                    <Select value={core.status}
+                      onValueChange={v=>{
+                        setCore(c=>({...c,status: v as TradeStatus}));
+                        markDirty();
+                      }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{['OPEN','CLOSED','PARTIAL','CANCELLED'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{['OPEN','TP','SL','PARTIAL','B/E','CANCELLED'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select>
                   ) : <div className="rounded bg-muted px-2 py-1 text-xs">{core.status}</div>}</div>
                   <div className="space-y-1"><Label>Quantity</Label>{isLocalEditable ? (
@@ -552,7 +563,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
                 </div>
               </div>
               <div className="space-y-2 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Prices {isLocalEditable ? '(Editable)' : '(Read Only)'}</h4>
+                <h4 className="font-medium text-sm">Prices (Editable)</h4>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {['entryPrice','exitPrice','stopLoss','takeProfit','commission','fees'].map(field => {
                     const label = field.replace(/([A-Z])/g,' $1');
@@ -592,12 +603,43 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
                 </div>
               </div>
               <div className="space-y-2 p-4 border rounded-md">
-                <h4 className="font-medium text-sm">Derived (Read Only)</h4>
+                <h4 className="font-medium text-sm">Derived</h4>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><Label className="text-[11px]">PnL</Label><div className="mt-1 rounded bg-muted px-2 py-1">{tradeData.pnl ?? '-'}</div></div>
-                  <div><Label className="text-[11px]">Net PnL</Label><div className="mt-1 rounded bg-muted px-2 py-1">{tradeData.netPnl ?? '-'}</div></div>
-                  <div><Label className="text-[11px]">RR Ratio</Label><div className="mt-1 rounded bg-muted px-2 py-1">{tradeData.riskRewardRatio ?? '-'}</div></div>
-                  <div><Label className="text-[11px]">Remaining Qty</Label><div className="mt-1 rounded bg-muted px-2 py-1">{tradeData.remainingQuantity ?? '-'}</div></div>
+                  <div>
+                    <Label className="text-[11px]">PnL</Label>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={tradeData.pnl ?? ''}
+                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); (tradeData as any).pnl = v; markDirty(); }}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]">Net PnL</Label>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={tradeData.netPnl ?? ''}
+                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); (tradeData as any).netPnl = v; markDirty(); }}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]">Achieved RR</Label>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={achievedRR ?? ''}
+                      onChange={e=>{ 
+                        const v = e.target.value === '' ? null : Number(e.target.value); 
+                        setAchievedRR(v); 
+                        markDirty(); 
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]">Remaining Qty</Label>
+                    <div className="mt-1 rounded bg-muted px-2 py-1">{tradeData.remainingQuantity ?? '-'}</div>
+                  </div>
                 </div>
               </div>
             </div>

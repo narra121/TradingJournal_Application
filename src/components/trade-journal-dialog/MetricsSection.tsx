@@ -30,14 +30,22 @@ export function MetricsSection({ metrics, onChange, marketConditions, sessions }
       </h3>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Risk Amount</Label>
+          <Label>Risk %</Label>
+          <div className="relative">
             <Input
               type="number"
               step="0.01"
-              placeholder="e.g., 100"
+              min="0"
+              placeholder="e.g., 1.0"
               value={metrics.riskAmount ?? ''}
-              onChange={(e) => onChange({ riskAmount: e.target.value === '' ? null : parseFloat(e.target.value) })}
+              onChange={(e) => {
+                const val = e.target.value;
+                onChange({ riskAmount: val === '' ? null : parseFloat(val) });
+              }}
             />
+            <span className="absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground pointer-events-none">%</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Stored as number; interpreted as percentage of account risk.</p>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">

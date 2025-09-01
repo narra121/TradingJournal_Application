@@ -31,11 +31,11 @@ export function AnalysisSection({ analysis, onChange, setupTypes, tradeMistakes 
       </h3>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Risk/Reward Ratio</Label>
+          <Label>Expected Risk/Reward</Label>
           <Input
             type="number"
             step="0.1"
-            placeholder="e.g., 2.5"
+            placeholder="Planned RR (e.g., 2.5)"
             value={analysis.riskRewardRatio ?? ''}
             onChange={(e) => onChange({ riskRewardRatio: e.target.value === '' ? null : parseFloat(e.target.value) })}
           />

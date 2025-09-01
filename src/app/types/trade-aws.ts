@@ -2,7 +2,7 @@
 // Do not import Firebase types here. This is the canonical target model.
 
 export type TradeSide = 'BUY' | 'SELL'
-export type TradeStatus = 'OPEN' | 'CLOSED' | 'PARTIAL' | 'CANCELLED'
+export type TradeStatus = 'OPEN' | 'CLOSED' | 'PARTIAL' | 'CANCELLED' | 'TP' | 'SL' | 'BE'
 export type TradeGrade = 'A' | 'B' | 'C' | 'D' | 'F'
 
 export interface ApiPsychologyFlags {
@@ -20,7 +20,7 @@ export interface ApiTradeImageBase {
   timeframe?: string | null
   description?: string | null
 }
-
+ 
 // When sending create/update we optionally include base64Data
 export interface ApiTradeImageCreate extends ApiTradeImageBase {
   base64Data?: string // data:image/... prefix
@@ -39,6 +39,8 @@ export interface ApiTradeBaseFields {
   commission?: number | null
   fees?: number | null
   riskAmount?: number | null
+  riskRewardRatio?: number | null
+  achievedRiskRewardRatio?: number | null
   setupType?: string | null
   timeframe?: string | null
   marketCondition?: string | null
@@ -69,7 +71,6 @@ export interface ApiTrade extends ApiTradeBaseFields {
   tradeId: string
   pnl?: number | null
   netPnl?: number | null
-  riskRewardRatio?: number | null
   realizedPartialPnl?: number | null
   remainingQuantity?: number | null
   createdAt?: string

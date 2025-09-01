@@ -6,10 +6,16 @@ import { RecentTrades } from "./components/recent-sales";
 import { Search } from "./components/search";
 import TeamSwitcher from "./components/team-switcher";
 import { UserNav } from "./components/user-nav";
-import { CumulativePnlChart } from "./components/cumulative-pnl-chart";
-import { PnlDistributionChart } from "./components/pnl-distribution-chart";
-import { WinRateBySetupChart } from "./components/winrate-by-setup-chart";
-import { DurationDistributionChart } from "./components/duration-distribution-chart";
+// Legacy charts temporarily removed while implementing new sequence
+// import { CumulativePnlChart } from "./components/cumulative-pnl-chart";
+// import { PnlDistributionChart } from "./components/pnl-distribution-chart";
+// import { WinRateBySetupChart } from "./components/winrate-by-setup-chart";
+// import { DurationDistributionChart } from "./components/duration-distribution-chart";
+import { HourlySuccessRateChart } from './components/hourly-success-rate-chart';
+import { EquityCurveChart } from './components/equity-curve-chart';
+import { RollingExpectancyChart } from './components/rolling-expectancy-chart';
+import { SessionHeatmapChart } from './components/session-heatmap-chart';
+import { StrategyTpHitRateChart } from './components/strategy-tp-hit-rate-chart';
 import CalendarView from "@/components/trading/CalendarView";
 import AdvancedTradesTable from "@/advanced-trades/AdvancedTradesTable";
 import { ApiTrade } from "@/app/types";
@@ -170,11 +176,14 @@ export default function DashboardPage() {
                 <CardContent><RecentTrades /></CardContent>
               </Card>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              <CumulativePnlChart />
-              <PnlDistributionChart />
-              <WinRateBySetupChart />
-              <DurationDistributionChart />
+            <div className="grid gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-8"><HourlySuccessRateChart /></div>
+              <div className="xl:col-span-4"><EquityCurveChart /></div>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <StrategyTpHitRateChart />
+              <RollingExpectancyChart />
+              <SessionHeatmapChart />
             </div>
           </TabsContent>
           <TabsContent value="trades">

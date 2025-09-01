@@ -60,11 +60,10 @@ export const AdvancedTradesTable: React.FC = () => {
 
   const filtered = useMemo(()=>{
     return trades
-      .filter(t => t.status === 'CLOSED')
       .filter(t => {
         if(filters.symbol && !t.symbol.toLowerCase().includes(filters.symbol.toLowerCase())) return false
         if(filters.side && t.side !== filters.side) return false
-        if(filters.status && getOutcome(t) !== filters.status) return false
+        if(filters.status && t.status !== filters.status) return false
         if(filters.minPnl){ if((t.pnl ?? 0) < parseFloat(filters.minPnl)) return false }
         if(filters.maxPnl){ if((t.pnl ?? 0) > parseFloat(filters.maxPnl)) return false }
         return true
@@ -98,6 +97,8 @@ export const AdvancedTradesTable: React.FC = () => {
 
   // Unique symbols for dropdown
   const symbols = useMemo(()=> Array.from(new Set(trades.map(t=> t.symbol))).sort(), [trades])
+  // Unique statuses for dropdown
+  const statuses = useMemo(()=> Array.from(new Set(trades.map(t=> t.status).filter(Boolean))).sort(), [trades])
   const [symbolOpen, setSymbolOpen] = useState(false)
   const currentSymbol = filters.symbol
 
@@ -209,8 +210,8 @@ export const AdvancedTradesTable: React.FC = () => {
   <Select value={filters.status || 'ALL'} onValueChange={v=>{ const status = v==='ALL' ? '' : v as any; setPage(1); setFilters(f=>({...f, status})) }}>
             <SelectTrigger><SelectValue placeholder='Status' /></SelectTrigger>
             <SelectContent>
-    <SelectItem value='ALL'>All Outcomes</SelectItem>
-      {['WIN','LOSS','BE'].map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}
+    <SelectItem value='ALL'>All Statuses</SelectItem>
+      {statuses.map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Input placeholder='Min PnL' value={filters.minPnl} onChange={e=>{ setPage(1); setFilters(f=>({...f, minPnl:e.target.value})) }} />
@@ -262,7 +263,7 @@ export const AdvancedTradesTable: React.FC = () => {
                     if(c.key==='openDate' || c.key==='closeDate') display = v ? format(new Date(v), 'yyyy-MM-dd HH:mm') : '-'
                     if(['entryPrice','exitPrice','pnl'].includes(String(c.key))) display = v==null? '-' : `$${Number(v).toFixed(2)}`
                     if(c.key==='quantity') display = v==null? '-' : v
-                    if(c.key==='status') display = getOutcome(t)
+                    if(c.key==='status') display = v || '-'
                     return <TableCell key={String(c.key)} className='whitespace-nowrap'>{display}</TableCell>
                   })}
                   <TableCell className='text-right whitespace-nowrap'>
