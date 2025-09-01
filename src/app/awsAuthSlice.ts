@@ -103,21 +103,47 @@ const awsAuthSlice = createSlice({
   initialState,
   reducers: {
     awsLogout(state) {
-      Object.assign(state, initialState)
-      localStorage.removeItem('tj.idToken')
-      localStorage.removeItem('tj.refreshToken')
-      localStorage.removeItem('tj.expiresAt')
+  // Clear any scheduled timers
+  if (expiryWarningTimer) { window.clearTimeout(expiryWarningTimer); expiryWarningTimer = null }
+  if (logoutTimer) { window.clearTimeout(logoutTimer); logoutTimer = null }
+  // Reset auth-related fields but keep bootstrapped=true so routing can proceed
+  state.idToken = null
+  state.accessToken = null
+  state.refreshToken = null
+  state.expiresAt = null
+  state.user = null
+  state.loading = false
+  state.error = null
+  state.refreshScheduled = false
+  state.bootstrapped = true
+  localStorage.removeItem('tj.idToken')
+  localStorage.removeItem('tj.refreshToken')
+  localStorage.removeItem('tj.expiresAt')
     },
   bootstrapFromStorage(state) {
       const idToken = localStorage.getItem('tj.idToken')
       const refreshToken = localStorage.getItem('tj.refreshToken')
       const expiresAtStr = localStorage.getItem('tj.expiresAt')
       if (!idToken || !refreshToken || !expiresAtStr) { state.bootstrapped = true; return }
+      const expiresAtNum = Number(expiresAtStr)
+      const nowSec = Math.floor(Date.now()/1000)
+      if (!expiresAtNum || expiresAtNum <= nowSec) {
+        // Token already expired; clear and mark bootstrapped so app can redirect to login
+        localStorage.removeItem('tj.idToken')
+        localStorage.removeItem('tj.refreshToken')
+        localStorage.removeItem('tj.expiresAt')
+        state.bootstrapped = true
+        state.idToken = null
+        state.refreshToken = null
+        state.expiresAt = null
+        state.user = null
+        return
+      }
       const claims = decodeJwt(idToken)
       state.idToken = idToken
       state.refreshToken = refreshToken
       state.accessToken = null
-      state.expiresAt = Number(expiresAtStr)
+      state.expiresAt = expiresAtNum
       if (claims?.sub) state.user = { sub: claims.sub, email: claims.email as string | undefined }
       state.bootstrapped = true
       // Schedule (or immediate) refresh using global store dispatcher if available
@@ -157,6 +183,21 @@ const awsAuthSlice = createSlice({
         localStorage.setItem('tj.expiresAt', String(s.expiresAt))
   s.refreshScheduled = false
   scheduleExpiryFlow((action: any) => (action.type ? (globalThis as any).store?.dispatch(action) : undefined), s)
+      })
+      .addCase(awsRefresh.rejected, (s) => {
+        // Refresh failed (likely expired/invalid); force logout semantics but keep bootstrapped
+        if (expiryWarningTimer) { window.clearTimeout(expiryWarningTimer); expiryWarningTimer = null }
+        if (logoutTimer) { window.clearTimeout(logoutTimer); logoutTimer = null }
+        s.idToken = null
+        s.accessToken = null
+        s.refreshToken = s.refreshToken // keep to allow user-initiated retry if desired
+        s.expiresAt = null
+        s.user = null
+        s.loading = false
+        s.refreshScheduled = false
+        s.bootstrapped = true
+        localStorage.removeItem('tj.idToken')
+        localStorage.removeItem('tj.expiresAt')
       })
   }
 })

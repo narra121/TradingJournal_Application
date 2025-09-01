@@ -4,7 +4,7 @@ type ToasterProps = React.ComponentProps<typeof Sonner>
 
 export const Toaster = (props: Partial<ToasterProps>) => (
   <Sonner
-    position="bottom-right"
+    position="top-right"
     richColors
     className="toaster group"
     toastOptions={{

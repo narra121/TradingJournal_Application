@@ -46,14 +46,16 @@ export default function DashboardPage() {
   // Date range state (synced from picker via callback)
   const [range, setRange] = useState<{from?: Date; to?: Date}>({});
   const initialFetchRef = useRef(false);
+  const firstRangeRefreshRef = useRef(true);
 
-  const refresh = async () => {
-    toast.loading('Refreshing trades...', { id: 'refresh-trades' });
+  const refresh = async (opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent;
+    if (!silent) toast.loading('Refreshing trades...', { id: 'refresh-trades' });
     try {
       await dispatch(listTrades(undefined) as any).unwrap(); // Ignore date filters for now
-      toast.success('Trades refreshed', { id: 'refresh-trades' });
+      if (!silent) toast.success('Trades refreshed', { id: 'refresh-trades' });
     } catch (e:any) {
-      toast.error(e.message || 'Refresh failed', { id: 'refresh-trades' });
+      if (!silent) toast.error(e.message || 'Refresh failed', { id: 'refresh-trades' });
     }
   };
 
@@ -61,12 +63,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (initialFetchRef.current) return;
     initialFetchRef.current = true;
-    refresh();
+  refresh({ silent: true }); // silent initial fetch (no toast)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refetch when range changes
-  useEffect(()=>{ if(initialFetchRef.current) refresh(); }, [range.from?.getTime(), range.to?.getTime()]);
+  useEffect(()=>{
+    if(!initialFetchRef.current) return; // wait until initial fetch done
+    // Suppress toast for the very first range-driven refresh (picker may fire immediately on mount)
+    if(firstRangeRefreshRef.current) {
+      firstRangeRefreshRef.current = false;
+      refresh({ silent: true });
+      return;
+    }
+    refresh();
+  }, [range.from?.getTime(), range.to?.getTime()]);
 
   const handleSelectDate = (date: Date) => {
     setSelectedCalendarDate(date);
@@ -108,7 +119,7 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <div className="flex items-center space-x-2">
             <CalendarDateRangePicker className="flex" onRangeChange={setRange} />
-            <Button variant="outline" size="sm" onClick={refresh} title="Refresh now">
+            <Button variant="outline" size="sm" onClick={()=>{ refresh(); }} title="Refresh now">
               <RotateCw className="h-4 w-4" />
             </Button>
             <TradeImportDialog />
