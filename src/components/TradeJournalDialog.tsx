@@ -84,6 +84,11 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   const [initialAnalysis, setInitialAnalysis] = useState(analysis);
   const [initialMetrics, setInitialMetrics] = useState(metrics);
   const [initialImagesState, setInitialImagesState] = useState<ImageType[]>([]);
+  // Editable PnL fields (previously mutated directly on trade object and sometimes ignored)
+  const [pnlValue, setPnlValue] = useState<number | null>(null);
+  const [netPnlValue, setNetPnlValue] = useState<number | null>(null);
+  const [initialPnlValue, setInitialPnlValue] = useState<number | null>(null);
+  const [initialNetPnlValue, setInitialNetPnlValue] = useState<number | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -204,6 +209,11 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   setInitialAchievedRR(derivedAchieved);
       setInitialMetrics(newMetrics);
   setInitialCore(newCore);
+  // Initialize editable PnL state baselines
+  setPnlValue(tradeData.pnl ?? null);
+  setNetPnlValue(tradeData.netPnl ?? null);
+  setInitialPnlValue(tradeData.pnl ?? null);
+  setInitialNetPnlValue(tradeData.netPnl ?? null);
   setTouched(false);
   lastInitTradeIdRef.current = tradeData.tradeId;
   // snapshot refreshed
@@ -212,16 +222,20 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       setInitialImagesState([]);
       setTouched(false);
   lastInitTradeIdRef.current = null;
+    setPnlValue(null);
+    setNetPnlValue(null);
+    setInitialPnlValue(null);
+    setInitialNetPnlValue(null);
     }
   }, [isOpen, tradeData]);
 
   const isDirty = useMemo(() => {
     if (!tradeData) return false;
     if (touched) return true;
-    const currentComposite = JSON.stringify({ psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags });
-  const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, achievedRR: initialAchievedRR, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags });
+    const currentComposite = JSON.stringify({ psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue });
+    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, achievedRR: initialAchievedRR, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags, pnlValue: initialPnlValue, netPnlValue: initialNetPnlValue });
     return currentComposite !== initialComposite;
-  }, [touched, psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, initialPsychology, initialAnalysis, initialAchievedRR, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
+  }, [touched, psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue, initialPnlValue, initialNetPnlValue, initialPsychology, initialAnalysis, initialAchievedRR, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
 
   const emotionalStates = [
     "Confident",
@@ -300,7 +314,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       // Prepare full updated ApiTrade object
       const preservedOpen = importMode && rawOpenDateRef.current ? rawOpenDateRef.current : core.openDate;
       const preservedClose = importMode && rawCloseDateRef.current ? rawCloseDateRef.current : (core.closeDate || null);
-      // Derive pnl / netPnl if possible (only for full trade update path)
+  // Derive pnl / netPnl if possible (only for full trade update path)
       const entryNum = toNum(core.entryPrice);
       const exitNum = toNum(core.exitPrice);
       const qtyNum = toNum(core.quantity) ?? 0;
@@ -311,11 +325,13 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
       const initialFeesNum = toNum(initialCore.fees);
       // PnL preservation rule:
       // - Never recalculate PnL; always preserve existing values from tradeData
-      let pnlDerived: number | null = tradeData.pnl ?? null;
+      let pnlDerived: number | null = pnlValue ?? tradeData.pnl ?? null;
       const commissionChanged = commissionNum !== initialCommissionNum;
       const feesChanged = feesNum !== initialFeesNum;
-      let netPnlDerived: number | null = tradeData.netPnl ?? null;
-      if (pnlDerived !== null && (commissionChanged || feesChanged)) {
+      let netPnlDerived: number | null = netPnlValue ?? tradeData.netPnl ?? null;
+      // Only auto-derive net if user hasn't manually changed it and commission/fees changed
+      const userEditedNet = netPnlValue !== initialNetPnlValue;
+      if (!userEditedNet && pnlDerived !== null && (commissionChanged || feesChanged)) {
         netPnlDerived = Math.round((pnlDerived - (commissionNum ?? 0) - (feesNum ?? 0)) * 100) / 100;
       }
       // Round risk amount consistently
@@ -356,7 +372,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   riskAmount: riskAmountNum,
         marketCondition: metrics.marketCondition ?? null,
         tradingSession: metrics.tradingSession ?? null,
-  pnl: pnlDerived ?? tradeData.pnl ?? undefined,
+  pnl: pnlDerived ?? undefined,
         netPnl: netPnlDerived ?? undefined,
   remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
   realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
@@ -416,7 +432,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
     riskAmount: riskAmountNum,
     marketCondition: metrics.marketCondition || null,
     tradingSession: metrics.tradingSession || null,
-  pnl: pnlDerived ?? tradeData.pnl ?? undefined,
+  pnl: pnlDerived ?? undefined,
     netPnl: netPnlDerived ?? undefined,
     remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
     realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
@@ -463,6 +479,9 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   onSave,
     onClose,
   importMode,
+  pnlValue,
+  netPnlValue,
+  initialNetPnlValue,
   ]);
 
   const handleClose = () => {
@@ -610,8 +629,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
                     <Input
                       type="number"
                       className="mt-1"
-                      value={tradeData.pnl ?? ''}
-                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); (tradeData as any).pnl = v; markDirty(); }}
+                      value={pnlValue ?? ''}
+                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); setPnlValue(v); markDirty(); }}
                     />
                   </div>
                   <div>
@@ -619,8 +638,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
                     <Input
                       type="number"
                       className="mt-1"
-                      value={tradeData.netPnl ?? ''}
-                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); (tradeData as any).netPnl = v; markDirty(); }}
+                      value={netPnlValue ?? ''}
+                      onChange={e=>{ const v = e.target.value === '' ? null : Number(e.target.value); setNetPnlValue(v); markDirty(); }}
                     />
                   </div>
                   <div>

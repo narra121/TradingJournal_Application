@@ -50,13 +50,6 @@ export const AdvancedTradesTable: React.FC = () => {
     maxPnl: ''
   })
 
-  // Journal now considers only closed trades, and status is derived outcome: WIN / LOSS / BE
-  const getOutcome = (t: ApiTrade): 'WIN' | 'LOSS' | 'BE' => {
-    const pnl = Number(t.pnl ?? 0)
-    if(pnl > 0) return 'WIN'
-    if(pnl < 0) return 'LOSS'
-    return 'BE'
-  }
 
   const filtered = useMemo(()=>{
     return trades
