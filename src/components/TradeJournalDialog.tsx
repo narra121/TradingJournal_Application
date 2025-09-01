@@ -89,6 +89,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   const [netPnlValue, setNetPnlValue] = useState<number | null>(null);
   const [initialPnlValue, setInitialPnlValue] = useState<number | null>(null);
   const [initialNetPnlValue, setInitialNetPnlValue] = useState<number | null>(null);
+  const [remainingQtyValue, setRemainingQtyValue] = useState<number | null>(null);
+  const [initialRemainingQtyValue, setInitialRemainingQtyValue] = useState<number | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -214,6 +216,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   setNetPnlValue(tradeData.netPnl ?? null);
   setInitialPnlValue(tradeData.pnl ?? null);
   setInitialNetPnlValue(tradeData.netPnl ?? null);
+  setRemainingQtyValue(tradeData.remainingQuantity ?? null);
+  setInitialRemainingQtyValue(tradeData.remainingQuantity ?? null);
   setTouched(false);
   lastInitTradeIdRef.current = tradeData.tradeId;
   // snapshot refreshed
@@ -226,16 +230,18 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
     setNetPnlValue(null);
     setInitialPnlValue(null);
     setInitialNetPnlValue(null);
+  setRemainingQtyValue(null);
+  setInitialRemainingQtyValue(null);
     }
   }, [isOpen, tradeData]);
 
   const isDirty = useMemo(() => {
     if (!tradeData) return false;
     if (touched) return true;
-    const currentComposite = JSON.stringify({ psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue });
-    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, achievedRR: initialAchievedRR, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags, pnlValue: initialPnlValue, netPnlValue: initialNetPnlValue });
+    const currentComposite = JSON.stringify({ psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue, remainingQtyValue });
+    const initialComposite = JSON.stringify({ psychology: initialPsychology, analysis: initialAnalysis, achievedRR: initialAchievedRR, metrics: initialMetrics, images: initialImagesState, core: initialCore, lessons: initialLessons, newsEvents: initialNewsEvents, economicEvents: initialEconomicEvents, tags: initialTags, pnlValue: initialPnlValue, netPnlValue: initialNetPnlValue, remainingQtyValue: initialRemainingQtyValue });
     return currentComposite !== initialComposite;
-  }, [touched, psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue, initialPnlValue, initialNetPnlValue, initialPsychology, initialAnalysis, initialAchievedRR, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
+  }, [touched, psychology, analysis, achievedRR, metrics, images, core, lessons, newsEvents, economicEvents, tags, pnlValue, netPnlValue, remainingQtyValue, initialPnlValue, initialNetPnlValue, initialRemainingQtyValue, initialPsychology, initialAnalysis, initialAchievedRR, initialMetrics, initialImagesState, initialCore, initialLessons, initialNewsEvents, initialEconomicEvents, initialTags, tradeData]);
 
   const emotionalStates = [
     "Confident",
@@ -373,8 +379,8 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         marketCondition: metrics.marketCondition ?? null,
         tradingSession: metrics.tradingSession ?? null,
   pnl: pnlDerived ?? undefined,
-        netPnl: netPnlDerived ?? undefined,
-  remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
+    netPnl: netPnlDerived ?? undefined,
+  remainingQuantity: (remainingQtyValue !== null && !isNaN(remainingQtyValue)) ? remainingQtyValue : (core.status === 'SL' ? 0 : (tradeData.remainingQuantity ?? null)),
   realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
       };
   if (localSave && onSave) {
@@ -434,7 +440,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
     tradingSession: metrics.tradingSession || null,
   pnl: pnlDerived ?? undefined,
     netPnl: netPnlDerived ?? undefined,
-    remainingQuantity: tradeData.remainingQuantity ?? (core.status === 'CLOSED' ? 0 : null),
+    remainingQuantity: (remainingQtyValue !== null && !isNaN(remainingQtyValue)) ? remainingQtyValue : (core.status === 'SL' ? 0 : (tradeData.remainingQuantity ?? null)),
     realizedPartialPnl: tradeData.realizedPartialPnl ?? null,
   }
   await dispatch(updateTrade({ tradeId: tradeData.tradeId, changes })).unwrap()
