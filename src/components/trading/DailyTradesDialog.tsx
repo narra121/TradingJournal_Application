@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { ApiTrade, ApiTradeImage } from '@/app/types';
+import { useAppDispatch } from '@/app/store';
+import { refreshTradeImages } from '@/app/imageUrlSlice';
 import { format, parseISO } from 'date-fns';
 import { cn } from 'lib/utils';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Badge } from '@/ui/badge';
 import { X, ZoomIn, ImageIcon } from 'lucide-react';
-import { Button } from '@/ui/button';
+// import { Button } from '@/ui/button'; // not used here currently
 // Legacy TradeDetails component removed in ApiTrade refactor
 
 interface DailyTradesDialogProps {
@@ -33,6 +35,41 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<{x:number;y:number}|null>(null);
   const [showDesc, setShowDesc] = useState(true);
+  const dispatch = useAppDispatch();
+
+  // Whenever dialog opens or selected trade changes, ensure image URLs are still valid.
+  useEffect(()=>{
+    if(!isOpen) return;
+    const current = selectedTrade || (trades && trades.length>0 ? trades[0] : null);
+    if(!current || !current.tradeId || !current.images || current.images.length===0) return;
+    // Heuristic: if any image URL appears expired (contains X-Amz-Expires and an X-Amz-Date older than ~12m) trigger refresh.
+    const now = Date.now();
+    const SHOULD_REFRESH_AFTER_MS = 12*60*1000; // 12 minutes
+    let needsRefresh = false;
+    for(const img of current.images) {
+      const url = img.url || '';
+      if(url.includes('X-Amz-Date')) {
+        // Extract timestamp like 20240915T143000Z
+        const m = url.match(/X-Amz-Date=([0-9TZ]+)/);
+        if(m) {
+          const ts = m[1];
+          // Parse basic YYYYMMDDTHHMMSSZ
+          const d = new Date(ts.replace(/([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z/, '$1-$2-$3T$4:$5:$6Z'));
+          if(isFinite(d.getTime())) {
+            if(now - d.getTime() > SHOULD_REFRESH_AFTER_MS) { needsRefresh = true; break; }
+          }
+        }
+      }
+    }
+    if(needsRefresh) {
+      dispatch(refreshTradeImages(current.tradeId)).then((res:any)=>{
+        if(res.meta?.requestStatus==='fulfilled') {
+          // Update selected trade images inline so UI updates without full re-query of all trades
+          setSelectedTrade(t=> t && t.tradeId===current.tradeId ? { ...t, images: res.payload.images as any } : t);
+        }
+      });
+    }
+  }, [isOpen, selectedTrade, trades, dispatch]);
 
   useEffect(() => {
     if (isOpen && trades.length > 0) {

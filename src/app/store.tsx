@@ -5,6 +5,7 @@ import uiSlice from "./uiSlice";
 import awsAuthReducer from './awsAuthSlice'
 import awsTradesReducer from './awsTradesSlice'
 import statsReducer from './statsSlice'
+import imageUrlReducer from './imageUrlSlice'
 
 const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ const store = configureStore({
   AwsAuth: awsAuthReducer, // new aws cognito-backed auth state
   AwsTrades: awsTradesReducer,
   Stats: statsReducer,
+  ImageUrls: imageUrlReducer,
     UI: uiSlice,
   },
   // Customize middleware to ignore non-serializable unsubscribe function
