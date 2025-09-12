@@ -24,7 +24,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState, useRef } from "react";
 import { AppDispatch } from "@/app/store";
 import { TradeJournalDialog } from "@/components/TradeJournalDialog";
-import { setIsEditOpen, setIsDetailsOpen } from "@/app/uiSlice";
+import { setIsEditOpen, setIsDetailsOpen, setSelectedItem } from "@/app/uiSlice";
 import { TradeImportDialog } from "@/components/trading/TradeJournal";
 import { DailyTradesDialog } from "@/components/trading/DailyTradesDialog";
 import { format, parseISO } from "date-fns";
@@ -205,12 +205,32 @@ export default function DashboardPage() {
               onClose={()=>dispatch(setIsDetailsOpen(false))} 
               selectedDate={selectedTrade ? new Date(selectedTrade.openDate) : null} 
               trades={selectedTrade ? [selectedTrade] : []} 
-              showTradesList={false} 
+              showTradesList={false}
+              navTradeIds={trades.map(t=>t.tradeId)}
+              currentTradeId={selectedTrade ? selectedTrade.tradeId : undefined}
+              onNavigateTrade={(id)=>{
+                dispatch(setSelectedItem(id));
+              }}
             />
           </TabsContent>
           <TabsContent value="calender">
             <CalendarView data={trades} onSelectDate={handleSelectDate} />
-            <DailyTradesDialog isOpen={isDailyTradesDialogOpen} onClose={() => setIsDailyTradesDialogOpen(false)} selectedDate={selectedCalendarDate} trades={tradesForSelectedDate as any} />
+            <DailyTradesDialog 
+              isOpen={isDailyTradesDialogOpen} 
+              onClose={() => setIsDailyTradesDialogOpen(false)} 
+              selectedDate={selectedCalendarDate} 
+              trades={tradesForSelectedDate as any}
+              navDays={[...new Set(trades.map(t=> format(parseISO(t.closeDate || t.openDate), 'yyyy-MM-dd')))].sort().map(d=> new Date(d))}
+              currentDayIndex={selectedCalendarDate ? [...new Set(trades.map(t=> format(parseISO(t.closeDate || t.openDate), 'yyyy-MM-dd')))].sort().findIndex(d=> d === format(selectedCalendarDate, 'yyyy-MM-dd')) : undefined}
+              onNavigateDay={(idx)=>{
+                const dayStrs = [...new Set(trades.map(t=> format(parseISO(t.closeDate || t.openDate), 'yyyy-MM-dd')))].sort();
+                const targetStr = dayStrs[idx];
+                const targetDate = new Date(targetStr);
+                setSelectedCalendarDate(targetDate);
+                const filtered = trades.filter(t=> format(parseISO(t.closeDate || t.openDate), 'yyyy-MM-dd') === targetStr);
+                setTradesForSelectedDate(filtered);
+              }}
+            />
           </TabsContent>
         </Tabs>
       </div>

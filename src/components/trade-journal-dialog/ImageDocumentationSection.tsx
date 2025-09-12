@@ -24,15 +24,27 @@ export function ImageDocumentationSection({ images, setImages, onDirty }: ImageD
   const timeframeOptions = ['1m','5m','15m','30m','1H','4H','Daily','Weekly']
   const MAX_IMAGES = 10
 
-  const addBlankImage = () => {
-    setImages(prev => {
-      if(prev.length >= MAX_IMAGES) return prev;
-      const created = { id: crypto.randomUUID(), url: '', timeframe: '', description: '' }
-      const next = [created, ...prev];
-      setEditingIndex(0)
-      onDirty()
-      return next
-    })
+  // Add multiple images from FileList
+  const addImagesFromFiles = async (files: FileList | null) => {
+    if (!files) return;
+    setIsUploading(true);
+    try {
+      const fileArr = Array.from(files).slice(0, MAX_IMAGES - images.length);
+      const newImages = await Promise.all(fileArr.map(async (file, i) => {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        });
+        return { id: crypto.randomUUID(), url: base64, timeframe: '', description: '', file };
+      }));
+      setImages(prev => [...prev, ...newImages].slice(0, MAX_IMAGES));
+      setEditingIndex(images.length); // focus first new
+      onDirty();
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   const handleFileSelectForIndex = async (file: File, idx: number) => {
@@ -99,7 +111,24 @@ export function ImageDocumentationSection({ images, setImages, onDirty }: ImageD
           <Upload className="w-5 h-5 text-purple-500" /> Images ({images.length})
         </h3>
         {images.length < MAX_IMAGES && (
-          <Button size="sm" variant="secondary" onClick={addBlankImage} className="gap-1"><Plus className="w-4 h-4"/>Add Image ({images.length}/{MAX_IMAGES})</Button>
+          <>
+            <input
+              id="multi-image-input"
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={e => { addImagesFromFiles(e.target.files); e.target.value = ''; }}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-1"
+              onClick={() => { document.getElementById('multi-image-input')?.click(); }}
+            >
+              <Plus className="w-4 h-4"/>Add Image ({images.length}/{MAX_IMAGES})
+            </Button>
+          </>
         )}
       </div>
       {images.length === 0 && <p className="text-xs text-muted-foreground">No images yet. Click Add Image to begin.</p>}

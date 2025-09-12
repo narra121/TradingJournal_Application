@@ -151,27 +151,27 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         fear: !!tradeData.psychology?.fear,
         overconfidence: !!tradeData.psychology?.overconfidence,
         patience: !!tradeData.psychology?.patience,
-        emotionalState: tradeData.emotionalState || '',
+        emotionalState: tradeData.emotionalState || 'confident',
         preNotes: tradeData.preTradeNotes || '',
         notes: tradeData.postTradeNotes || ''
       }
       const newAnalysis: AnalysisState = {
   riskRewardRatio: tradeData.riskRewardRatio ?? null,
-        setupType: (tradeData.setupType || '').toLowerCase(),
+        setupType: (tradeData.setupType || 'blads candle close').toLowerCase(),
         mistakes: (tradeData.mistakes || []).map(m => (m || '').toLowerCase()).filter(Boolean)
       }
       const derivedAchieved = tradeData.achievedRiskRewardRatio ?? (tradeData.riskAmount ? (tradeData.pnl ?? 0) / (tradeData.riskAmount || 1) : null);
       const newMetrics: MetricsState = {
         riskAmount: tradeData.riskAmount ?? null,
-        marketCondition: (tradeData.marketCondition || '').toLowerCase(),
-        tradingSession: (tradeData.tradingSession || '').toLowerCase()
+        marketCondition: (tradeData.marketCondition || 'trending').toLowerCase(),
+        tradingSession: (tradeData.tradingSession || 'asian').toLowerCase()
       }
       // Normalize date strings to YYYY-MM-DD if they include time
     // Preserve full ISO datetime (backend stores with time). Truncation removed.
       const newCore = {
         symbol: tradeData.symbol,
-        side: tradeData.side,
-        status: tradeData.status,
+        side: tradeData.side || 'BUY',
+        status: tradeData.status || 'TP',
         quantity: tradeData.quantity,
           openDate: tradeData.openDate || '',
           closeDate: tradeData.closeDate || '',
@@ -182,7 +182,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         commission: tradeData.commission ?? '',
         fees: tradeData.fees ?? '',
   timeframe: (tradeData.timeframe || ''),
-        tradeGrade: tradeData.tradeGrade ?? null,
+        tradeGrade: tradeData.tradeGrade || 'A',
         confidence: tradeData.confidence ?? null,
         setupQuality: tradeData.setupQuality ?? null,
         execution: tradeData.execution ?? null,

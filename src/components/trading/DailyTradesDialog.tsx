@@ -15,9 +15,17 @@ interface DailyTradesDialogProps {
   selectedDate: Date | null;
   trades: ApiTrade[];
   showTradesList?: boolean; // Optional prop to control whether to show trades list
+  // Navigation across trades (for table double-click flow)
+  navTradeIds?: string[];
+  currentTradeId?: string | null;
+  onNavigateTrade?: (tradeId: string) => void;
+  // Navigation across days (for calendar flow)
+  navDays?: Date[]; // sorted list of distinct days
+  currentDayIndex?: number; // index within navDays
+  onNavigateDay?: (dayIndex: number) => void;
 }
 
-export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showTradesList = true }: DailyTradesDialogProps) {
+export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showTradesList = true, navTradeIds, currentTradeId, onNavigateTrade, navDays, currentDayIndex, onNavigateDay }: DailyTradesDialogProps) {
   const [selectedTrade, setSelectedTrade] = useState<ApiTrade | null>(null);
   const [activeImage, setActiveImage] = useState<ApiTradeImage | null>(null);
   const [imageScale, setImageScale] = useState(1);
@@ -77,6 +85,20 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
 
   if (!selectedDate) return null;
 
+  // Trade navigation state (when viewing a single trade via table double click without day aggregation)
+  const tradeIndex = currentTradeId && navTradeIds ? navTradeIds.indexOf(currentTradeId) : -1;
+  const canPrevTrade = tradeIndex > 0;
+  const canNextTrade = tradeIndex >= 0 && navTradeIds ? tradeIndex < navTradeIds.length - 1 : false;
+
+  const handlePrevTrade = () => { if(canPrevTrade && navTradeIds && onNavigateTrade) onNavigateTrade(navTradeIds[tradeIndex - 1]); };
+  const handleNextTrade = () => { if(canNextTrade && navTradeIds && onNavigateTrade) onNavigateTrade(navTradeIds[tradeIndex + 1]); };
+
+  // Day navigation (calendar context)
+  const canPrevDay = typeof currentDayIndex === 'number' && navDays && currentDayIndex > 0;
+  const canNextDay = typeof currentDayIndex === 'number' && navDays && currentDayIndex < navDays.length - 1;
+  const handlePrevDay = () => { if(canPrevDay && onNavigateDay && typeof currentDayIndex === 'number') onNavigateDay(currentDayIndex - 1); };
+  const handleNextDay = () => { if(canNextDay && onNavigateDay && typeof currentDayIndex === 'number') onNavigateDay(currentDayIndex + 1); };
+
   const field = (label: string, value: any) => {
     if(value === undefined || value === null || value === '' || (Array.isArray(value) && value.length===0)) return null;
     if(Array.isArray(value)) {
@@ -113,10 +135,28 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-screen-2xl w-[95vw] h-[92vh] p-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-2 border-b">
-          <DialogTitle className="text-base font-medium tracking-tight">
-            Trades on {format(selectedDate, 'PPP')} <span className="text-muted-foreground font-normal">({trades.length})</span>
-          </DialogTitle>
+        <DialogHeader className="p-4 pb-2 border-b flex flex-row items-center gap-3">
+          <div className="flex items-center flex-wrap gap-3">
+            <DialogTitle className="text-base font-medium tracking-tight flex items-center gap-2 whitespace-nowrap min-w-[250px]">
+              Trades on {format(selectedDate, 'PPP')} <span className="text-muted-foreground font-normal">({trades.length})</span>
+            </DialogTitle>
+            {/* Day navigation */}
+            {navDays && typeof currentDayIndex === 'number' && navDays.length > 1 && (
+              <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                <button disabled={!canPrevDay} onClick={handlePrevDay} className="text-[11px] px-2 py-1 border rounded disabled:opacity-40">Prev Day</button>
+                <button disabled={!canNextDay} onClick={handleNextDay} className="text-[11px] px-2 py-1 border rounded disabled:opacity-40">Next Day</button>
+                <span className="text-[10px] text-muted-foreground ml-1">{currentDayIndex + 1}/{navDays.length}</span>
+              </div>
+            )}
+            {/* Trade navigation */}
+            {navTradeIds && tradeIndex >= 0 && navTradeIds.length > 1 && (
+              <div className="flex items-center gap-1 ml-4 flex-shrink-0">
+                <button disabled={!canPrevTrade} onClick={handlePrevTrade} className="text-[11px] px-2 py-1 border rounded disabled:opacity-40">Prev</button>
+                <button disabled={!canNextTrade} onClick={handleNextTrade} className="text-[11px] px-2 py-1 border rounded disabled:opacity-40">Next</button>
+                <span className="text-[10px] text-muted-foreground ml-1">{tradeIndex + 1}/{navTradeIds.length}</span>
+              </div>
+            )}
+          </div>
         </DialogHeader>
         <div className="flex h-[calc(100%)] max-h-[calc(92vh)]">{/* main content */}
           {/* Trades list - conditionally rendered */}
