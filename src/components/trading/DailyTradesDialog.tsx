@@ -383,7 +383,18 @@ export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showT
                       {(!selectedTrade.images || selectedTrade.images.length===0) && (
                         <div className="text-xs text-muted-foreground">No images</div>
                       )}
-                      {selectedTrade.images && selectedTrade.images.map(img => (
+                      {selectedTrade.images && [...selectedTrade.images]
+                        .sort((a,b)=>{
+                          const order = ['1m','3m','5m','10m','15m','30m','45m','1h','2h','3h','4h','6h','8h','12h','1d','1w','1mo'];
+                          const ia = a.timeframe ? order.indexOf(a.timeframe.toLowerCase()) : -1;
+                          const ib = b.timeframe ? order.indexOf(b.timeframe.toLowerCase()) : -1;
+                          // Unknown timeframes get placed after known ones alphabetically
+                          if(ia===-1 && ib===-1) return (a.timeframe||'').localeCompare(b.timeframe||'');
+                          if(ia===-1) return 1;
+                          if(ib===-1) return -1;
+                          return ia-ib;
+                        })
+                        .map(img => (
                         <div key={img.id||img.url} className="border rounded-md p-3 bg-muted/30">
                           {img.timeframe && <div className="text-xs font-bold text-foreground bg-background/80 px-2 py-1 rounded w-fit uppercase tracking-wide">{img.timeframe}</div>}
                           <div className="w-full aspect-video bg-background rounded flex items-center justify-center overflow-hidden mb-2 cursor-pointer" onClick={()=> setActiveImage(img)}>

@@ -198,14 +198,24 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   setInitialEconomicEvents(tradeData.economicEvents || [])
   setInitialTags(tradeData.tags || [])
       // Apply state
-      setImages(newImages);
+      // Sort images by timeframe ascending (smallest interval first) for consistent viewing order
+      const order = ['1m','3m','5m','10m','15m','30m','45m','1h','2h','3h','4h','6h','8h','12h','1d','1w','1mo'];
+      const sortedImages = [...newImages].sort((a,b)=> {
+        const ia = a.timeframe ? order.indexOf(a.timeframe.toLowerCase()) : -1;
+        const ib = b.timeframe ? order.indexOf(b.timeframe.toLowerCase()) : -1;
+        if(ia===-1 && ib===-1) return (a.timeframe||'').localeCompare(b.timeframe||'');
+        if(ia===-1) return 1;
+        if(ib===-1) return -1;
+        return ia-ib;
+      });
+      setImages(sortedImages);
       setPsychology(newPsychology);
   setAnalysis(newAnalysis);
   setAchievedRR(derivedAchieved);
       setMetrics(newMetrics);
       setCore(newCore);
       // Store baselines
-      setInitialImagesState(newImages);
+  setInitialImagesState(sortedImages);
       setInitialPsychology(newPsychology);
   setInitialAnalysis(newAnalysis);
   setInitialAchievedRR(derivedAchieved);
