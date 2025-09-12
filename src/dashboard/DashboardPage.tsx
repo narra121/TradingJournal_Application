@@ -12,6 +12,7 @@ import { UserNav } from "./components/user-nav";
 // import { WinRateBySetupChart } from "./components/winrate-by-setup-chart";
 // import { DurationDistributionChart } from "./components/duration-distribution-chart";
 import { HourlySuccessRateChart } from './components/hourly-success-rate-chart';
+import { LessonsWidget } from './components/lessons-widget';
 import { EquityCurveChart } from './components/equity-curve-chart';
 import { RollingExpectancyChart } from './components/rolling-expectancy-chart';
 import { SessionHeatmapChart } from './components/session-heatmap-chart';
@@ -195,6 +196,9 @@ export default function DashboardPage() {
               <StrategyTpHitRateChart />
               <RollingExpectancyChart />
               <SessionHeatmapChart />
+            </div>
+            <div className="mt-6 w-[66%] max-w-[66%]">
+              <LessonsWidget />
             </div>
           </TabsContent>
           <TabsContent value="trades">
