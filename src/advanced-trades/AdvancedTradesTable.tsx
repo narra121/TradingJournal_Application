@@ -245,7 +245,6 @@ export const AdvancedTradesTable: React.FC = () => {
                     <TableRow
                       className='hover:bg-muted/50'
                       tabIndex={0}
-                      onDoubleClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsDetailsOpen(true)) }}
                     >
                   <TableCell className='w-8'>
                     <Checkbox checked={selected.has(t.tradeId)} onCheckedChange={()=> toggleOne(t.tradeId)} aria-label='Select row'/>
@@ -259,17 +258,30 @@ export const AdvancedTradesTable: React.FC = () => {
                     if(c.key==='status') display = v || '-'
                     return <TableCell key={String(c.key)} className='whitespace-nowrap'>{display}</TableCell>
                   })}
-                  <TableCell className='text-right whitespace-nowrap'>
-                    <div className='inline-flex gap-1'>
+                  <TableCell className='text-right whitespace-nowrap align-middle'>
+                    <div className='inline-flex gap-1 items-center h-full'>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            variant='ghost'
-                            size='icon'
+                            variant='outline'
+                            size='sm'
+                            aria-label='View Details'
+                            className='h-6 px-2 text-[11px] font-medium rounded-md border border-border leading-none flex items-center justify-center'
+                            onClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsDetailsOpen(true)) }}
+                          >View</Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View Details</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='outline'
+                            size='sm'
                             aria-label='Edit Journal'
+                            className='h-6 px-2 rounded-md flex items-center justify-center border'
                             onClick={()=>{ dispatch(setSelectedItem(t.tradeId)); dispatch(setIsEditOpen(true)) }}
                           >
-                            <Pencil className='w-4 h-4 text-slate-500'/>
+                            <Pencil className='w-3.5 h-3.5 text-slate-500'/>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Edit</TooltipContent>
@@ -280,12 +292,13 @@ export const AdvancedTradesTable: React.FC = () => {
                           <TooltipTrigger asChild>
                             <AlertDialogTrigger asChild>
                               <Button
-                                variant='ghost'
-                                size='icon'
+                                variant='outline'
+                                size='sm'
                                 aria-label='Delete'
+                                className='h-6 px-2 rounded-md flex items-center justify-center border'
                                 disabled={deletingIds.has(t.tradeId)}
                               >
-                                {deletingIds.has(t.tradeId) ? <Loader2 className='w-4 h-4 animate-spin text-slate-500'/> : <Trash2 className='w-4 h-4 text-slate-500'/>}
+                                {deletingIds.has(t.tradeId) ? <Loader2 className='w-3.5 h-3.5 animate-spin text-slate-500'/> : <Trash2 className='w-3.5 h-3.5 text-slate-500'/>}
                               </Button>
                             </AlertDialogTrigger>
                           </TooltipTrigger>
@@ -318,9 +331,9 @@ export const AdvancedTradesTable: React.FC = () => {
                     </div>
                   </TableCell>
                     </TableRow>
-                  </TooltipTrigger>
-                  <TooltipContent>Double‑click row to view</TooltipContent>
-                </Tooltip>
+                    </TooltipTrigger>
+                    {/* Removed double-click row to view tooltip */}
+                  </Tooltip>
               ))}
               {sorted.length===0 && (
                 <TableRow>
