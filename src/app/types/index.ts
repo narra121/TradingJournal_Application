@@ -20,9 +20,10 @@ export interface ImageType {
 }
 
 export interface UIState {
-  selectedItem: string | null; // store selected tradeId only
+  selectedItem: string | null;
   isDetailsOpen: boolean;
   isEditOpen: boolean;
+  filteredTradeIds: string[];
 }
 
 // AWS API types

@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { ApiTrade } from '@/app/types'
 import { RootState, AppDispatch } from '@/app/store'
 import { deleteTrade, bulkDelete } from '@/app/awsTradesSlice'
-import { setSelectedItem, setIsEditOpen, setIsDetailsOpen } from '@/app/uiSlice'
+import { setSelectedItem, setIsEditOpen, setIsDetailsOpen, setFilteredTradeIds } from '@/app/uiSlice'
 import { format } from 'date-fns'
 import { Card, CardHeader, CardTitle, CardContent } from '@/ui/card'
 import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from '@/ui/table'
@@ -76,6 +76,13 @@ export const AdvancedTradesTable: React.FC = () => {
       return 0
     })
   },[filtered, sort])
+
+  // Update filtered trade IDs in UI state whenever sorted trades change
+  useEffect(() => {
+    const tradeIds = sorted.map(t => t.tradeId);
+    console.log('AdvancedTradesTable: Setting filtered trade IDs:', tradeIds);
+    dispatch(setFilteredTradeIds(tradeIds));
+  }, [sorted, dispatch])
 
   const paged = useMemo(()=>{
     const start = (page-1)*pageSize

@@ -5,6 +5,7 @@ const initialState: UIState = {
   selectedItem: null,
   isDetailsOpen: false,
   isEditOpen: false,
+  filteredTradeIds: [],
 };
 
 const uiSlice = createSlice({
@@ -29,6 +30,10 @@ const uiSlice = createSlice({
     toggleEditOpen: (state) => {
       state.isEditOpen = !state.isEditOpen;
     },
+    setFilteredTradeIds: (state, action: PayloadAction<string[]>) => {
+      console.log('uiSlice: Setting filteredTradeIds:', action.payload);
+      state.filteredTradeIds = action.payload;
+    },
   },
 });
 
@@ -39,6 +44,7 @@ export const {
   toggleDetailsOpen,
   setIsEditOpen,
   toggleEditOpen,
+  setFilteredTradeIds,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

@@ -23,7 +23,7 @@ import { ApiTrade } from "@/app/types";
 import { listTrades } from "@/app/awsTradesSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState, useRef } from "react";
-import { AppDispatch } from "@/app/store";
+import { AppDispatch, RootState } from "@/app/store";
 import { TradeJournalDialog } from "@/components/TradeJournalDialog";
 import { setIsEditOpen, setIsDetailsOpen, setSelectedItem } from "@/app/uiSlice";
 import { TradeImportDialog } from "@/components/trading/TradeJournal";
@@ -41,8 +41,17 @@ export default function DashboardPage() {
   const dispatch = useDispatch<AppDispatch>();
   const isJournalOpen = useSelector((s:any)=> s.UI.isEditOpen);
   const isDetailsOpen = useSelector((s:any)=> s.UI.isDetailsOpen);
+    const filteredTradeIds = useSelector((state: RootState) => {
+    console.log('DashboardPage: Current filteredTradeIds from state:', state.UI.filteredTradeIds);
+    return state.UI.filteredTradeIds;
+  });
   const selectedTradeId = useSelector((s:any)=> s.UI.selectedItem);
   const selectedTrade = trades.find(t=> t.tradeId === selectedTradeId) || null;
+
+  // Debug: log filtered trade IDs when they change
+  useEffect(() => {
+    console.log('Filtered trade IDs updated:', filteredTradeIds);
+  }, [filteredTradeIds]);
 
   // Date range state (synced from picker via callback)
   const [range, setRange] = useState<{from?: Date; to?: Date}>({});
@@ -210,7 +219,11 @@ export default function DashboardPage() {
               selectedDate={selectedTrade ? new Date(selectedTrade.openDate) : null} 
               trades={selectedTrade ? [selectedTrade] : []} 
               showTradesList={false}
-              navTradeIds={trades.map(t=>t.tradeId)}
+              navTradeIds={(() => {
+                const ids = filteredTradeIds.length > 0 ? filteredTradeIds : trades.map(t=>t.tradeId);
+                console.log('Navigation Trade IDs:', ids);
+                return ids;
+              })()}
               currentTradeId={selectedTrade ? selectedTrade.tradeId : undefined}
               onNavigateTrade={(id)=>{
                 dispatch(setSelectedItem(id));

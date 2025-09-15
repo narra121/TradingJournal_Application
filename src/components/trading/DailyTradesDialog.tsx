@@ -28,6 +28,12 @@ interface DailyTradesDialogProps {
 }
 
 export function DailyTradesDialog({ isOpen, onClose, selectedDate, trades, showTradesList = true, navTradeIds, currentTradeId, onNavigateTrade, navDays, currentDayIndex, onNavigateDay }: DailyTradesDialogProps) {
+  
+  // Debug logging
+  console.log('DailyTradesDialog: navTradeIds received:', navTradeIds);
+  console.log('DailyTradesDialog: currentTradeId:', currentTradeId);
+  console.log('DailyTradesDialog: total trades:', trades?.length);
+  
   const [selectedTrade, setSelectedTrade] = useState<ApiTrade | null>(null);
   const [activeImage, setActiveImage] = useState<ApiTradeImage | null>(null);
   const [imageScale, setImageScale] = useState(1);
