@@ -23,7 +23,7 @@ import { Label } from '@/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/select'
 import { Slider } from '@/ui/slider'
 import { Badge } from '@/ui/badge'
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid"; // removed - not needed for image handling
 import { updateTrade } from '@/app/awsTradesSlice'
 import { toast } from 'sonner'
 
@@ -308,24 +308,33 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   };
 
   try {
-      const imagesToUpload = images.filter((image) => image.file);
-      const imageUrls = await Promise.all(
-        imagesToUpload.map(async () => {
-          return Promise.resolve(`https://example.com/image/${uuidv4()}.png`)
-        })
-      )
-
-      const updatedImages = images.map((image, index) => {
-        if (image.file) {
+      // Prepare images: convert File objects to base64, keep existing URLs as-is
+      const processedImages = await Promise.all(
+        images.map(async (image) => {
+          if (image.file) {
+            // Convert file to base64 for API
+            return new Promise<{id: string; url: string; timeframe: string; description: string}>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                resolve({
+                id: image.id,
+                url: reader.result as string, // base64 data URL
+                timeframe: image.timeframe || '',
+                description: image.description || '',
+              });
+              };
+              reader.readAsDataURL(image.file!);
+            });
+          }
+          // Keep existing images as-is
           return {
             id: image.id,
-            url: imageUrls[index],
-            timeframe: image.timeframe,
-            description: image.description,
+            url: image.url,
+            timeframe: image.timeframe || '',
+            description: image.description || '',
           };
-        }
-        return image;
-      });
+        })
+      );
 
       // Prepare full updated ApiTrade object
       const preservedOpen = importMode && rawOpenDateRef.current ? rawOpenDateRef.current : core.openDate;
@@ -379,7 +388,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         lessons,
         tags,
         psychology: { ...psychology },
-        images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+        images: processedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
         emotionalState: psychology.emotionalState || null,
   postTradeNotes: psychology.notes || null,
   riskRewardRatio: analysis.riskRewardRatio ?? null,
@@ -401,14 +410,14 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
         setInitialPsychology(psychology);
         setInitialAnalysis(analysis);
         setInitialMetrics(metrics);
-        setInitialImagesState(updatedImages);
+        setInitialImagesState(processedImages);
         setInitialLessons(lessons);
         setInitialNewsEvents(newsEvents);
         setInitialEconomicEvents(economicEvents);
         setInitialTags(tags);
         setTouched(false);
         // Persist images locally so they can be restored when viewing in the normal trades table after import save
-        try { localStorage.setItem(`journalImages:${updatedTrade.tradeId}`, JSON.stringify(updatedImages)); } catch {}
+        try { localStorage.setItem(`journalImages:${updatedTrade.tradeId}`, JSON.stringify(processedImages)); } catch {}
         toast.success('Changes saved locally', { id: 'journal-update' });
         setIsSaving(false);
         return;
@@ -437,7 +446,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
     newsEvents,
     economicEvents,
     tags,
-    images: updatedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
+    images: processedImages.slice(0,10).map(img => ({ id: img.id, url: img.url, timeframe: img.timeframe || null, description: img.description || null })),
     psychology: { greed: psychology.greed, fomo: psychology.fomo, revenge: psychology.revenge, fear: psychology.fear, overconfidence: psychology.overconfidence, patience: psychology.patience },
     emotionalState: psychology.emotionalState || null,
     postTradeNotes: psychology.notes || null,
@@ -460,7 +469,7 @@ export function TradeJournalDialog({ isOpen, onClose, trade, onSave, importMode 
   setInitialPsychology(psychology);
       setInitialAnalysis(analysis);
       setInitialMetrics(metrics);
-  setInitialImagesState(updatedImages);
+  setInitialImagesState(processedImages);
   setInitialAchievedRR(achievedRR);
   setInitialCore(core)
       setInitialAchievedRR(achievedRR);
